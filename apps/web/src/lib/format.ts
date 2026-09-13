@@ -65,6 +65,33 @@ export function formatExpiry(expiresAt: string | null, now: Date = new Date()): 
   return formatDate(expiresAt);
 }
 
+export type ExpiryStatus = "never" | "expired" | "soon" | "upcoming" | "far";
+
+const SOON_MS = 24 * 60 * 60 * 1000;
+const UPCOMING_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Classifies an expiry for colour coding: expired, <24h, <7d, further out, or never. */
+export function getExpiryStatus(
+  expiresAt: string | null,
+  now: Date = new Date(),
+): ExpiryStatus {
+  if (!expiresAt) {
+    return "never";
+  }
+
+  const diffMs = new Date(expiresAt).getTime() - now.getTime();
+  if (diffMs <= 0) {
+    return "expired";
+  }
+  if (diffMs < SOON_MS) {
+    return "soon";
+  }
+  if (diffMs < UPCOMING_MS) {
+    return "upcoming";
+  }
+  return "far";
+}
+
 export function percentage(part: number, total: number): string {
   if (total <= 0) {
     return "0%";

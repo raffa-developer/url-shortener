@@ -164,6 +164,7 @@ describe("AnalyticsService.getLinkAnalytics", () => {
       shortCode: LINK.shortCode,
       shortUrl: LINK.shortUrl,
       destinationUrl: LINK.destinationUrl,
+      expiresAt: null,
     });
     expect(analytics.range.days).toBe(7);
     expect(analytics.totalClicks).toBe(12);

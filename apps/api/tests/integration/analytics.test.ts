@@ -90,6 +90,7 @@ describeWithDb("analytics API (integration)", () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.link.shortCode).toBe(shortCode);
+    expect(body.link.expiresAt).toBeNull();
     expect(body.totalClicks).toBe(1);
     expect(body.today).toBe(1);
     expect(body.yesterday).toBe(0);

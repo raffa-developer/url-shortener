@@ -5,6 +5,7 @@ import { BreakdownCard } from "@/components/analytics/breakdown-card";
 import { ClicksChart } from "@/components/analytics/clicks-chart";
 import { LinkPreviewCard } from "@/components/analytics/link-preview-card";
 import { CopyButton } from "@/components/copy-button";
+import { ExpiryBadge } from "@/components/expiry-badge";
 import { StatCard } from "@/components/stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -54,9 +55,12 @@ export function AnalyticsPage() {
         <BackLink />
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="font-mono text-xl font-semibold tracking-tight">
-              /{data.link.shortCode}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-mono text-xl font-semibold tracking-tight">
+                /{data.link.shortCode}
+              </h1>
+              <ExpiryBadge expiresAt={data.link.expiresAt} />
+            </div>
             <p className="mt-1 truncate text-sm text-muted-foreground">
               {data.link.destinationUrl}
             </p>

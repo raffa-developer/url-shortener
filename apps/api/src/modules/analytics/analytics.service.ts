@@ -93,6 +93,7 @@ export class AnalyticsService {
         shortCode: link.shortCode,
         shortUrl: link.shortUrl,
         destinationUrl: link.destinationUrl,
+        expiresAt: link.expiresAt,
       },
       range: { days: options.days, from: from.toISOString(), to: now.toISOString() },
       totalClicks,

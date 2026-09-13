@@ -4,6 +4,7 @@ import { Copy, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DeleteLinkDialog } from "@/components/links/delete-link-dialog";
 import { EditLinkDialog } from "@/components/links/edit-link-dialog";
+import { ExpiryBadge } from "@/components/expiry-badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { copyText } from "@/lib/clipboard";
-import { formatExpiry, formatNumber, formatRelative } from "@/lib/format";
+import { formatNumber, formatRelative } from "@/lib/format";
 import type { LinkDTO } from "@/lib/types";
 
 export function LinksTable({ links }: { links: LinkDTO[] }) {
@@ -70,8 +71,8 @@ export function LinksTable({ links }: { links: LinkDTO[] }) {
               <TableCell className="text-muted-foreground">
                 {formatRelative(link.createdAt)}
               </TableCell>
-              <TableCell className="text-muted-foreground">
-                {formatExpiry(link.expiresAt)}
+              <TableCell>
+                <ExpiryBadge expiresAt={link.expiresAt} />
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>

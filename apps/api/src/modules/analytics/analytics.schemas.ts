@@ -10,6 +10,7 @@ export const analyticsResponseSchema = z.object({
     shortCode: z.string(),
     shortUrl: z.url(),
     destinationUrl: z.url(),
+    expiresAt: z.iso.datetime().nullable(),
   }),
   range: z.object({
     days: z.number().int(),

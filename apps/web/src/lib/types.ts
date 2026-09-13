@@ -51,6 +51,7 @@ export interface AnalyticsResponse {
     shortCode: string;
     shortUrl: string;
     destinationUrl: string;
+    expiresAt: string | null;
   };
   range: {
     days: number;

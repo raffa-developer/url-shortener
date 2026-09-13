@@ -5,6 +5,7 @@ import {
   formatExpiry,
   formatNumber,
   formatRelative,
+  getExpiryStatus,
   percentage,
 } from "./format";
 
@@ -101,6 +102,41 @@ describe("formatExpiry", () => {
   it("shows a date from 24 hours out", () => {
     expect(formatExpiry(new Date(2026, 8, 15, 12, 0, 0).toISOString(), now)).toMatch(
       /Sep/,
+    );
+  });
+});
+
+describe("getExpiryStatus", () => {
+  const now = new Date(2026, 8, 13, 12, 0, 0);
+
+  it("classifies never and expired", () => {
+    expect(getExpiryStatus(null, now)).toBe("never");
+    expect(getExpiryStatus(new Date(2026, 8, 13, 11, 0, 0).toISOString(), now)).toBe(
+      "expired",
+    );
+  });
+
+  it("classifies under 24 hours as soon", () => {
+    expect(getExpiryStatus(new Date(2026, 8, 13, 18, 0, 0).toISOString(), now)).toBe(
+      "soon",
+    );
+    expect(getExpiryStatus(new Date(2026, 8, 14, 11, 0, 0).toISOString(), now)).toBe(
+      "soon",
+    );
+  });
+
+  it("classifies under 7 days as upcoming", () => {
+    expect(getExpiryStatus(new Date(2026, 8, 15, 12, 0, 0).toISOString(), now)).toBe(
+      "upcoming",
+    );
+    expect(getExpiryStatus(new Date(2026, 8, 19, 11, 59, 0).toISOString(), now)).toBe(
+      "upcoming",
+    );
+  });
+
+  it("classifies a week or more as far", () => {
+    expect(getExpiryStatus(new Date(2026, 8, 20, 12, 0, 0).toISOString(), now)).toBe(
+      "far",
     );
   });
 });
