@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { BreakdownCard } from "@/components/analytics/breakdown-card";
 import { ClicksChart } from "@/components/analytics/clicks-chart";
+import { LinkPreviewCard } from "@/components/analytics/link-preview-card";
 import { CopyButton } from "@/components/copy-button";
 import { StatCard } from "@/components/stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -75,6 +76,11 @@ export function AnalyticsPage() {
           </div>
         </div>
       </div>
+
+      <LinkPreviewCard
+        shortCode={data.link.shortCode}
+        destinationUrl={data.link.destinationUrl}
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard

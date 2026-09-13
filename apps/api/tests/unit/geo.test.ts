@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { isPrivateIp } from "../../src/lib/ip";
 import {
-  isPrivateIp,
   resolveCountry,
   resolveCountryFromHeaders,
 } from "../../src/modules/analytics/geo";

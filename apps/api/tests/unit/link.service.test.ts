@@ -53,6 +53,27 @@ class FakeLinkRepository {
     return this.records.find((record) => record.shortCode === shortCode) ?? null;
   }
 
+  async update(
+    shortCode: string,
+    data: { destinationUrl?: string; expiresAt?: Date | null },
+  ): Promise<LinkRecord> {
+    const record = this.records.find((candidate) => candidate.shortCode === shortCode);
+    if (!record) {
+      throw new Error("Record not found");
+    }
+    if (data.destinationUrl !== undefined) {
+      record.destinationUrl = data.destinationUrl;
+    }
+    if (data.expiresAt !== undefined) {
+      record.expiresAt = data.expiresAt;
+    }
+    return record;
+  }
+
+  async delete(shortCode: string): Promise<void> {
+    this.records = this.records.filter((record) => record.shortCode !== shortCode);
+  }
+
   async list(params: {
     userId: string;
     limit: number;
@@ -65,9 +86,12 @@ class FakeLinkRepository {
 
 function createService(
   repository: FakeLinkRepository,
-  generateShortCode?: () => string,
+  options: {
+    generateShortCode?: () => string;
+    invalidateCache?: (shortCode: string) => Promise<void>;
+  } = {},
 ): LinkService {
-  return new LinkService(repository as unknown as LinkRepository, config, generateShortCode);
+  return new LinkService(repository as unknown as LinkRepository, config, options);
 }
 
 describe("LinkService.create", () => {
@@ -132,7 +156,9 @@ describe("LinkService.create", () => {
     const repository = new FakeLinkRepository();
     const codes = ["dup", "dup", "fresh"];
     let index = 0;
-    const service = createService(repository, () => codes[index++] ?? "fallback");
+    const service = createService(repository, {
+      generateShortCode: () => codes[index++] ?? "fallback",
+    });
 
     await service.create(
       { destinationUrl: "https://example.com", customAlias: "dup" },
@@ -145,7 +171,7 @@ describe("LinkService.create", () => {
 
   it("gives up after the configured number of attempts", async () => {
     const repository = new FakeLinkRepository();
-    const service = createService(repository, () => "clash");
+    const service = createService(repository, { generateShortCode: () => "clash" });
 
     await service.create(
       { destinationUrl: "https://example.com", customAlias: "clash" },
@@ -192,6 +218,112 @@ describe("LinkService ownership", () => {
     await expect(service.getByShortCode("mine", OTHER)).rejects.toBeInstanceOf(
       ForbiddenError,
     );
+  });
+});
+
+describe("LinkService.update", () => {
+  it("updates the destination and invalidates the cache", async () => {
+    const repository = new FakeLinkRepository();
+    const invalidated: string[] = [];
+    const service = createService(repository, {
+      invalidateCache: async (shortCode) => {
+        invalidated.push(shortCode);
+      },
+    });
+    await service.create(
+      { destinationUrl: "https://old.example", customAlias: "edit-me" },
+      OWNER,
+    );
+
+    const updated = await service.update("edit-me", OWNER, {
+      destinationUrl: "new.example/path",
+    });
+
+    expect(updated.destinationUrl).toBe("https://new.example/path");
+    expect(invalidated).toEqual(["edit-me"]);
+  });
+
+  it("clears the expiry when null is provided", async () => {
+    const service = createService(new FakeLinkRepository());
+    await service.create(
+      {
+        destinationUrl: "https://example.com",
+        customAlias: "expiry",
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      },
+      OWNER,
+    );
+
+    const updated = await service.update("expiry", OWNER, { expiresAt: null });
+    expect(updated.expiresAt).toBeNull();
+  });
+
+  it("rejects an expiry in the past", async () => {
+    const service = createService(new FakeLinkRepository());
+    await service.create(
+      { destinationUrl: "https://example.com", customAlias: "past" },
+      OWNER,
+    );
+
+    await expect(
+      service.update("past", OWNER, {
+        expiresAt: new Date(Date.now() - 1000).toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("rejects another user's link", async () => {
+    const service = createService(new FakeLinkRepository());
+    await service.create(
+      { destinationUrl: "https://example.com", customAlias: "mine" },
+      OWNER,
+    );
+
+    await expect(
+      service.update("mine", OTHER, { destinationUrl: "https://hijack.example" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects an unknown link", async () => {
+    const service = createService(new FakeLinkRepository());
+    await expect(
+      service.update("missing", OWNER, { destinationUrl: "https://example.com" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("LinkService.delete", () => {
+  it("deletes the link and invalidates the cache", async () => {
+    const repository = new FakeLinkRepository();
+    const invalidated: string[] = [];
+    const service = createService(repository, {
+      invalidateCache: async (shortCode) => {
+        invalidated.push(shortCode);
+      },
+    });
+    await service.create(
+      { destinationUrl: "https://example.com", customAlias: "remove-me" },
+      OWNER,
+    );
+
+    await service.delete("remove-me", OWNER);
+
+    expect(repository.records).toHaveLength(0);
+    expect(invalidated).toEqual(["remove-me"]);
+  });
+
+  it("rejects another user's link and keeps it", async () => {
+    const repository = new FakeLinkRepository();
+    const service = createService(repository);
+    await service.create(
+      { destinationUrl: "https://example.com", customAlias: "protected" },
+      OWNER,
+    );
+
+    await expect(service.delete("protected", OTHER)).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+    expect(repository.records).toHaveLength(1);
   });
 });
 

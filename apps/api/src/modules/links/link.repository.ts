@@ -65,6 +65,22 @@ export class LinkRepository {
     return row ? toRecord(row) : null;
   }
 
+  async update(
+    shortCode: string,
+    data: { destinationUrl?: string; expiresAt?: Date | null },
+  ): Promise<LinkRecord> {
+    const row = await this.db.link.update({
+      where: { shortCode },
+      data,
+      select: linkWithCountSelect,
+    });
+    return toRecord(row);
+  }
+
+  async delete(shortCode: string): Promise<void> {
+    await this.db.link.delete({ where: { shortCode } });
+  }
+
   async list(params: {
     userId: string;
     limit: number;

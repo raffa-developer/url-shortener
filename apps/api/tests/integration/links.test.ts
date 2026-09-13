@@ -120,6 +120,141 @@ describeWithDb("links API (integration)", () => {
     expect(allowed.statusCode).toBe(200);
   });
 
+  it("updates a link and invalidates the cached redirect", async () => {
+    await ctx.app.inject({
+      method: "POST",
+      url: "/api/links",
+      headers: bearer(owner.accessToken),
+      payload: { destinationUrl: "https://before.example", customAlias: "crud-edit" },
+    });
+
+    const first = await ctx.app.inject({ method: "GET", url: "/crud-edit" });
+    expect(first.headers.location).toBe("https://before.example/");
+    expect(first.headers["x-cache"]).toBe("MISS");
+
+    const cached = await ctx.app.inject({ method: "GET", url: "/crud-edit" });
+    expect(cached.headers["x-cache"]).toBe("HIT");
+
+    const updated = await ctx.app.inject({
+      method: "PATCH",
+      url: "/api/links/crud-edit",
+      headers: bearer(owner.accessToken),
+      payload: { destinationUrl: "after.example/promo" },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().destinationUrl).toBe("https://after.example/promo");
+
+    // The stale cache entry must be gone: MISS and the new destination.
+    const after = await ctx.app.inject({ method: "GET", url: "/crud-edit" });
+    expect(after.headers["x-cache"]).toBe("MISS");
+    expect(after.headers.location).toBe("https://after.example/promo");
+  });
+
+  it("validates updates and enforces ownership", async () => {
+    await ctx.app.inject({
+      method: "POST",
+      url: "/api/links",
+      headers: bearer(owner.accessToken),
+      payload: { destinationUrl: "https://owned.example", customAlias: "crud-owned" },
+    });
+
+    const forbidden = await ctx.app.inject({
+      method: "PATCH",
+      url: "/api/links/crud-owned",
+      headers: bearer(other.accessToken),
+      payload: { destinationUrl: "https://hijack.example" },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const invalid = await ctx.app.inject({
+      method: "PATCH",
+      url: "/api/links/crud-owned",
+      headers: bearer(owner.accessToken),
+      payload: { destinationUrl: "ftp://example.com" },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const empty = await ctx.app.inject({
+      method: "PATCH",
+      url: "/api/links/crud-owned",
+      headers: bearer(owner.accessToken),
+      payload: {},
+    });
+    expect(empty.statusCode).toBe(400);
+
+    const unknown = await ctx.app.inject({
+      method: "PATCH",
+      url: "/api/links/does-not-exist",
+      headers: bearer(owner.accessToken),
+      payload: { destinationUrl: "https://example.com" },
+    });
+    expect(unknown.statusCode).toBe(404);
+  });
+
+  it("deletes a link and stops redirecting it", async () => {
+    await ctx.app.inject({
+      method: "POST",
+      url: "/api/links",
+      headers: bearer(owner.accessToken),
+      payload: { destinationUrl: "https://delete.example", customAlias: "crud-delete" },
+    });
+
+    // Warm the redirect cache to prove deletion invalidates it.
+    await ctx.app.inject({ method: "GET", url: "/crud-delete" });
+
+    const deleted = await ctx.app.inject({
+      method: "DELETE",
+      url: "/api/links/crud-delete",
+      headers: bearer(owner.accessToken),
+    });
+    expect(deleted.statusCode).toBe(204);
+
+    const redirect = await ctx.app.inject({ method: "GET", url: "/crud-delete" });
+    expect(redirect.statusCode).toBe(404);
+
+    const list = await ctx.app.inject({
+      method: "GET",
+      url: "/api/links",
+      headers: bearer(owner.accessToken),
+    });
+    expect(
+      list
+        .json()
+        .data.some((link: { shortCode: string }) => link.shortCode === "crud-delete"),
+    ).toBe(false);
+  });
+
+  it("never fetches private addresses for a preview", async () => {
+    await ctx.app.inject({
+      method: "POST",
+      url: "/api/links",
+      headers: bearer(owner.accessToken),
+      payload: { destinationUrl: "http://127.0.0.1/secret", customAlias: "crud-preview" },
+    });
+
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/api/links/crud-preview/preview",
+      headers: bearer(owner.accessToken),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      url: "http://127.0.0.1/secret",
+      title: null,
+      description: null,
+      image: null,
+      siteName: null,
+    });
+
+    const forbidden = await ctx.app.inject({
+      method: "GET",
+      url: "/api/links/crud-preview/preview",
+      headers: bearer(other.accessToken),
+    });
+    expect(forbidden.statusCode).toBe(403);
+  });
+
   it("redirects publicly without authentication", async () => {
     await ctx.app.inject({
       method: "POST",

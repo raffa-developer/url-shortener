@@ -12,7 +12,9 @@ import type {
   AuthSession,
   CreatedApiKey,
   LinkDTO,
+  LinkPreview,
   PaginatedLinks,
+  UpdateLinkInput,
 } from "./types";
 
 export interface CreateLinkInput {
@@ -51,6 +53,59 @@ export function useCreateLink() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["links"] });
     },
+  });
+}
+
+export function useUpdateLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      shortCode,
+      input,
+    }: {
+      shortCode: string;
+      input: UpdateLinkInput;
+    }) =>
+      apiFetch<LinkDTO>(`/api/links/${encodeURIComponent(shortCode)}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (_link, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["links"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["analytics", variables.shortCode],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["preview", variables.shortCode],
+      });
+    },
+  });
+}
+
+export function useDeleteLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (shortCode: string) =>
+      apiFetch<void>(`/api/links/${encodeURIComponent(shortCode)}`, {
+        method: "DELETE",
+      }),
+    onSuccess: (_result, shortCode) => {
+      void queryClient.invalidateQueries({ queryKey: ["links"] });
+      queryClient.removeQueries({ queryKey: ["analytics", shortCode] });
+      queryClient.removeQueries({ queryKey: ["preview", shortCode] });
+    },
+  });
+}
+
+export function useLinkPreview(shortCode: string) {
+  return useQuery({
+    queryKey: ["preview", shortCode],
+    queryFn: () =>
+      apiFetch<LinkPreview>(`/api/links/${encodeURIComponent(shortCode)}/preview`),
+    enabled: shortCode.length > 0,
+    staleTime: 5 * 60_000,
   });
 }
 

@@ -44,6 +44,25 @@ test("a new user can register, shorten a link and see analytics", async ({
     await expect(page.getByTestId("total-clicks")).toHaveText("1");
   }).toPass({ timeout: 20_000 });
 
+  // Back to the dashboard to edit the link.
+  await page.getByRole("link", { name: "Links", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "My Links" })).toBeVisible();
+
+  const row = page.locator("tbody tr", { hasText: `/${alias}` });
+  await row.getByRole("button", { name: "Open menu" }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  await page.getByLabel("Destination").fill("https://example.com/e2e-updated");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Link updated")).toBeVisible();
+  await expect(row).toContainText("e2e-updated");
+
+  // Delete it.
+  await row.getByRole("button", { name: "Open menu" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete link" }).click();
+  await expect(page.getByText("Link deleted")).toBeVisible();
+  await expect(page.locator("tbody tr", { hasText: `/${alias}` })).toHaveCount(0);
+
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 });

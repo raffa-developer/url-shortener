@@ -32,6 +32,19 @@ export interface CreatedApiKey {
   key: string;
 }
 
+export interface UpdateLinkInput {
+  destinationUrl?: string;
+  expiresAt?: string | null;
+}
+
+export interface LinkPreview {
+  url: string;
+  title: string | null;
+  description: string | null;
+  image: string | null;
+  siteName: string | null;
+}
+
 export interface AnalyticsResponse {
   link: {
     id: string;

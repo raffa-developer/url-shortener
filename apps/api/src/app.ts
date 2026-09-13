@@ -11,6 +11,7 @@ import {
 } from "fastify-type-provider-zod";
 import Redis from "ioredis";
 import { createRedisRedirectCache } from "./cache/redirect-cache";
+import { createRedisPreviewCache } from "./cache/preview-cache";
 import type { AppConfig } from "./config";
 import type { Database } from "./db";
 import { createLogger } from "./logger";
@@ -29,6 +30,7 @@ import { ClickRepository } from "./modules/analytics/click.repository";
 import { LinkRepository } from "./modules/links/link.repository";
 import { linkRoutes } from "./modules/links/link.routes";
 import { LinkService } from "./modules/links/link.service";
+import { LinkPreviewService } from "./modules/links/link-preview.service";
 import { redirectRoutes } from "./modules/redirects/redirect.routes";
 import { RedirectService } from "./modules/redirects/redirect.service";
 import { UserRepository } from "./modules/users/user.repository";
@@ -135,12 +137,6 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
   const apiKeyService = new ApiKeyService(apiKeyRepository);
   const guard = createAuthGuard(tokenService, apiKeyService);
 
-  const linkRepository = new LinkRepository(db);
-  const linkService = new LinkService(linkRepository, config);
-
-  const clickRepository = new ClickRepository(db);
-  const analyticsService = new AnalyticsService(clickRepository, linkService);
-
   const redirectCache =
     config.redirectCacheEnabled && config.redisUrl
       ? createRedisRedirectCache(config.redisUrl, {
@@ -153,6 +149,36 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
       await redirectCache.close();
     });
   }
+
+  const previewCache = config.redisUrl
+    ? createRedisPreviewCache(config.redisUrl, {
+        onError: (error) => app.log.warn({ err: error }, "Preview cache error"),
+      })
+    : null;
+
+  if (previewCache) {
+    app.addHook("onClose", async () => {
+      await previewCache.close();
+    });
+  }
+
+  const invalidateLinkCaches = async (shortCode: string): Promise<void> => {
+    await Promise.allSettled([
+      redirectCache?.delete(shortCode),
+      previewCache?.delete(shortCode),
+    ]);
+  };
+
+  const linkRepository = new LinkRepository(db);
+  const linkService = new LinkService(linkRepository, config, {
+    invalidateCache: invalidateLinkCaches,
+  });
+  const previewService = new LinkPreviewService(previewCache, {
+    onError: (error) => app.log.warn({ err: error }, "Link preview failed"),
+  });
+
+  const clickRepository = new ClickRepository(db);
+  const analyticsService = new AnalyticsService(clickRepository, linkService);
 
   const redirectService = new RedirectService(linkService, redirectCache, config, {
     onCacheError: (error) => app.log.warn({ err: error }, "Redirect cache unavailable"),
@@ -181,7 +207,7 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
     { prefix: "/api" },
   );
   await app.register(apiKeyRoutes(apiKeyService, guard), { prefix: "/api" });
-  await app.register(linkRoutes(linkService, guard), { prefix: "/api" });
+  await app.register(linkRoutes(linkService, previewService, guard), { prefix: "/api" });
   await app.register(analyticsRoutes(analyticsService, guard), { prefix: "/api" });
   await app.register(redirectRoutes(
     redirectService,

@@ -17,6 +17,8 @@ everything that happens _after_ a link is clicked.
 - [x] Per-user link ownership (users can only see and manage their own links)
 - [x] Click analytics: totals, daily series, countries, devices, browsers, referrers
 - [x] React dashboard: shadcn/ui components, responsive layout, light/dark themes
+- [x] Full link management: create, edit (destination/expiry), delete from the dashboard
+- [x] Open Graph preview card of the destination, fetched server-side and cached
 - [x] Dashboard API-key management (one-time secret shown once, revoke any time)
 - [x] Redis cache-aside for redirects with measured benchmarks
 - [x] Asynchronous click processing: Redis Streams + a dedicated worker
@@ -203,7 +205,10 @@ Require `Authorization: Bearer <accessToken>` or `X-API-Key: sk_...`:
 | `POST` | `/api/links`      | Create a short link                  | `201`   |
 | `GET`  | `/api/links`      | List your links (cursor pagination)  | `200`   |
 | `GET`  | `/api/links/:code`| Fetch metadata for one of your links | `200`   |
+| `PATCH`| `/api/links/:code`| Edit destination and/or expiry       | `200`   |
+| `DELETE`| `/api/links/:code`| Delete a link and its clicks        | `204`   |
 | `GET`  | `/api/links/:code/analytics` | Click analytics for a link (`?days=30`) | `200` |
+| `GET`  | `/api/links/:code/preview` | Open Graph preview of the destination | `200` |
 | `GET`  | `/api/keys`       | List your API keys (JWT session only)| `200`   |
 | `POST` | `/api/keys`       | Create an API key (secret shown once)| `201`   |
 | `DELETE` | `/api/keys/:id` | Revoke an API key (JWT session only) | `204`   |
@@ -323,9 +328,10 @@ Errors use a consistent envelope:
   database read — the redirect still succeeds. The client runs with
   `enableOfflineQueue: false` and `maxRetriesPerRequest: 1` so an unreachable
   Redis fails fast instead of queuing commands.
-- **Links are immutable**, so there is no write-through invalidation to do;
-  creation relies on the first redirect to populate the cache. A future
-  delete/update endpoint would invalidate `redirect:<code>` explicitly.
+- **Edits and deletes invalidate explicitly.** Updating a link evicts both
+  `redirect:<code>` and `preview:<code>`, and deleting a link evicts them too,
+  so a changed or removed link stops redirecting immediately instead of waiting
+  for a TTL.
 - **Only successful lookups are cached** (no negative caching), so a newly
   created alias is never hidden by a stale 404.
 
@@ -350,6 +356,21 @@ Errors use a consistent envelope:
   start:worker`) built from the same codebase — a modular monolith that deploys
   as two containers. It can safely run multiple replicas: the consumer group
   shards events between them.
+
+### Link previews
+
+- **Server-side Open Graph fetch.** `GET /api/links/:code/preview` fetches the
+  destination, parses `og:*` / `twitter:*` / `<title>` / `<meta name="description">`
+  and returns a normalized card, cached in Redis for 24 hours and invalidated
+  when the link is edited or deleted.
+- **SSRF-hardened.** http(s) only; the hostname is resolved via DNS and every
+  returned address is checked against private/loopback ranges; `.local` and
+  `.internal` hosts are blocked; redirects are followed manually (max 3) with
+  the same checks on every hop; 5 second timeout and a 512 KB body cap. A
+  destination pointing at `127.0.0.1` returns an empty preview without any
+  request being made.
+- **No image proxying.** Image URLs are returned as-is and the browser loads
+  them with `referrerPolicy="no-referrer"`.
 
 ## Performance
 
@@ -476,7 +497,7 @@ link cascades to its clicks.
 
 ## Testing
 
-Unit tests run without any infrastructure (107 API + 10 web tests):
+Unit tests run without any infrastructure (133 API + 14 web tests):
 
 ```bash
 npm run test:unit
@@ -484,10 +505,11 @@ npm run test:unit
 
 Integration tests exercise the real API against PostgreSQL and Redis using
 `app.inject()` (no network). They cover the auth lifecycle, API key lifecycle,
-rate limiting, link ownership isolation, expiry, redirects, click capture,
-analytics aggregation, cache-aside behaviour including concurrent redirects, and
-the event pipeline (stream publishing, at-least-once processing, dead-lettering
-and idempotent redelivery) — 38 tests.
+rate limiting, link ownership isolation, link create/update/delete with cache
+invalidation, preview SSRF guards, expiry, redirects, click capture, analytics
+aggregation, cache-aside behaviour including concurrent redirects, and the event
+pipeline (stream publishing, at-least-once processing, dead-lettering and
+idempotent redelivery) — 42 tests.
 
 **They reset every table in the database they run against**, so always point
 them at a dedicated test database, never at your development data. One-time
@@ -546,7 +568,7 @@ npm run db:cleanup-test-data
 - [x] **V4 — Redis:** cache `short_code → destination_url` (cache-aside), measured at 2.5× faster than Postgres.
 - [x] **V5 — Events:** click events on a Redis stream, processed by a worker — redirects dropped from 2.12 ms to 0.71 ms.
 - [x] **V6 — Production:** rate limiting, API keys, OpenAPI docs, structured logging, Docker images and the full compose stack.
-- [x] **Extras:** dashboard API-key management, Playwright E2E tests, GitHub Actions CI.
+- [x] **Extras:** link editing/deletion, Open Graph previews, dashboard API-key management, Playwright E2E tests, GitHub Actions CI.
 
 All planned versions are complete. The interesting engineering story in one
 sentence: **a redirect that used to make four synchronous decisions now makes

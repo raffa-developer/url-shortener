@@ -35,10 +35,30 @@ export const listLinksQuerySchema = z.object({
   cursor: z.string().min(1).optional(),
 });
 
+export const updateLinkBodySchema = z
+  .object({
+    destinationUrl: z.string().trim().min(1).max(2048).optional(),
+    expiresAt: z.iso.datetime().nullable().optional(),
+  })
+  .refine(
+    (value) => value.destinationUrl !== undefined || value.expiresAt !== undefined,
+    { message: "Provide destinationUrl and/or expiresAt" },
+  );
+
+export const linkPreviewSchema = z.object({
+  url: z.url(),
+  title: z.string().nullable(),
+  description: z.string().nullable(),
+  image: z.url().nullable(),
+  siteName: z.string().nullable(),
+});
+
 export const shortCodeParamsSchema = z.object({
   shortCode: z.string().min(1).max(64),
 });
 
 export type LinkResponse = z.infer<typeof linkSchema>;
 export type CreateLinkBody = z.infer<typeof createLinkBodySchema>;
+export type UpdateLinkBody = z.infer<typeof updateLinkBodySchema>;
 export type ListLinksQuery = z.infer<typeof listLinksQuerySchema>;
+export type LinkPreviewResponse = z.infer<typeof linkPreviewSchema>;

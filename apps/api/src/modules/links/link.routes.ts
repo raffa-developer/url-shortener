@@ -3,16 +3,20 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { errorResponseSchema } from "../../schemas";
 import { getAuthenticatedUser } from "../auth/auth.middleware";
+import type { LinkPreviewService } from "./link-preview.service";
 import type { LinkService } from "./link.service";
 import {
   createLinkBodySchema,
+  linkPreviewSchema,
   linkSchema,
   listLinksQuerySchema,
   shortCodeParamsSchema,
+  updateLinkBodySchema,
 } from "./link.schemas";
 
 export function linkRoutes(
   service: LinkService,
+  previewService: LinkPreviewService,
   guard: preHandlerHookHandler,
 ): FastifyPluginAsyncZod {
   return async (app) => {
@@ -73,6 +77,76 @@ export function linkRoutes(
           request.params.shortCode,
           getAuthenticatedUser(request).id,
         ),
+    );
+
+    app.patch(
+      "/links/:shortCode",
+      {
+        schema: {
+          params: shortCodeParamsSchema,
+          body: updateLinkBodySchema,
+          response: {
+            200: linkSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+          },
+        },
+      },
+      async (request) =>
+        service.update(
+          request.params.shortCode,
+          getAuthenticatedUser(request).id,
+          request.body,
+        ),
+    );
+
+    app.delete(
+      "/links/:shortCode",
+      {
+        schema: {
+          params: shortCodeParamsSchema,
+          response: {
+            204: z.undefined(),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+          },
+        },
+      },
+      async (request, reply) => {
+        await service.delete(
+          request.params.shortCode,
+          getAuthenticatedUser(request).id,
+        );
+        return reply.code(204).send();
+      },
+    );
+
+    // Fetching a preview makes the server call the destination, so it gets a
+    // stricter rate limit than the rest of the API.
+    app.get(
+      "/links/:shortCode/preview",
+      {
+        config: { rateLimit: { max: 30, timeWindow: 60_000 } },
+        schema: {
+          params: shortCodeParamsSchema,
+          response: {
+            200: linkPreviewSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+          },
+        },
+      },
+      async (request) => {
+        const link = await service.getByShortCode(
+          request.params.shortCode,
+          getAuthenticatedUser(request).id,
+        );
+        return previewService.getPreview(link.shortCode, link.destinationUrl);
+      },
     );
   };
 }
