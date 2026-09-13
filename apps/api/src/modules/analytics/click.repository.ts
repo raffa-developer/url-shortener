@@ -18,6 +18,7 @@ export interface CreateClickInput {
   referrer: string | null;
   timestamp?: Date;
   eventId?: string | null;
+  visitorHash?: string | null;
 }
 
 export interface GroupCount {
@@ -37,6 +38,7 @@ export class ClickRepository {
         browser: input.browser,
         referrer: input.referrer,
         eventId: input.eventId ?? null,
+        visitorHash: input.visitorHash ?? null,
         ...(input.timestamp ? { timestamp: input.timestamp } : {}),
       },
     });
@@ -50,6 +52,17 @@ export class ClickRepository {
     return this.db.click.count({
       where: { linkId, timestamp: { gte: from, lt: to } },
     });
+  }
+
+  async countUniqueVisitors(linkId: string, from: Date): Promise<number> {
+    const rows = await this.db.$queryRaw<{ count: number }[]>`
+      SELECT COUNT(DISTINCT "visitorHash")::int AS count
+      FROM "Click"
+      WHERE "linkId" = ${linkId}
+        AND "timestamp" >= ${from}
+        AND "visitorHash" IS NOT NULL
+    `;
+    return rows[0]?.count ?? 0;
   }
 
   async countByDay(linkId: string, from: Date): Promise<{ date: string; count: number }[]> {

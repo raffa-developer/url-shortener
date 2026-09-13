@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { hashVisitor } from "../../lib/visitor-hash";
 import type { ClickEventPublisher } from "../../queue/click-events";
 import { errorResponseSchema } from "../../schemas";
 import type { AnalyticsService } from "../analytics/analytics.service";
@@ -22,11 +23,16 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
  * published as an event for the analytics worker (V5). If the queue is
  * unavailable, the click is inserted synchronously instead.
  */
+export interface RedirectRouteOptions {
+  geoipFallbackCountry?: string;
+  visitorHashSecret: string;
+}
+
 export function redirectRoutes(
   redirects: RedirectService,
   analytics: AnalyticsService,
   publisher: ClickEventPublisher | null,
-  geoipFallbackCountry?: string,
+  options: RedirectRouteOptions,
 ): FastifyPluginAsyncZod {
   return async (app) => {
     app.get(
@@ -42,6 +48,7 @@ export function redirectRoutes(
       },
       async (request, reply) => {
         const resolved = await redirects.resolve(request.params.shortCode);
+        const userAgent = firstHeader(request.headers["user-agent"]) ?? null;
 
         await recordClickEvent({
           publisher,
@@ -49,13 +56,19 @@ export function redirectRoutes(
           event: {
             linkId: resolved.linkId,
             timestamp: new Date().toISOString(),
-            userAgent: firstHeader(request.headers["user-agent"]) ?? null,
+            userAgent,
             referrer:
               firstHeader(request.headers.referer ?? request.headers.referrer) ?? null,
             country: resolveCountry({
               headers: request.headers,
               ip: request.ip,
-              fallbackCountry: geoipFallbackCountry,
+              fallbackCountry: options.geoipFallbackCountry,
+            }),
+            visitorHash: hashVisitor({
+              ip: request.ip,
+              userAgent,
+              linkId: resolved.linkId,
+              secret: options.visitorHashSecret,
             }),
           },
           onError: (error, context) =>

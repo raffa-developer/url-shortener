@@ -8,6 +8,7 @@ export type {
 export interface AuthUser {
   id: string;
   email: string;
+  emailVerifiedAt: string | null;
   createdAt: string;
 }
 
@@ -64,6 +65,7 @@ export interface AnalyticsResponse {
     to: string;
   };
   totalClicks: number;
+  uniqueVisitors: number;
   today: number;
   yesterday: number;
   clicksPerDay: { date: string; count: number }[];

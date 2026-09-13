@@ -24,6 +24,8 @@ export interface RecordClickInput {
   timestamp?: Date;
   /** Stream entry id; makes at-least-once redelivery idempotent. */
   eventId?: string | null;
+  /** Link-scoped pseudonymous visitor id; no raw IP is stored. */
+  visitorHash?: string | null;
 }
 
 export class AnalyticsService {
@@ -43,6 +45,7 @@ export class AnalyticsService {
         country: normalizeCountry(input.country),
         referrer: normalizeReferrer(input.referrer),
         eventId: input.eventId ?? null,
+        visitorHash: input.visitorHash ?? null,
         ...(input.timestamp ? { timestamp: input.timestamp } : {}),
       });
     } catch (error) {
@@ -69,6 +72,7 @@ export class AnalyticsService {
 
     const [
       totalClicks,
+      uniqueVisitors,
       today,
       yesterday,
       dailyRows,
@@ -78,6 +82,7 @@ export class AnalyticsService {
       referrers,
     ] = await Promise.all([
       this.clicks.countTotal(link.id),
+      this.clicks.countUniqueVisitors(link.id, from),
       this.clicks.countBetween(link.id, startOfToday, addUtcDays(startOfToday, 1)),
       this.clicks.countBetween(link.id, startOfYesterday, startOfToday),
       this.clicks.countByDay(link.id, from),
@@ -97,6 +102,7 @@ export class AnalyticsService {
       },
       range: { days: options.days, from: from.toISOString(), to: now.toISOString() },
       totalClicks,
+      uniqueVisitors,
       today,
       yesterday,
       clicksPerDay: fillDailyGaps(

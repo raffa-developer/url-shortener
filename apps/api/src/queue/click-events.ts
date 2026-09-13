@@ -22,6 +22,11 @@ export const clickEventSchema = z.object({
     .max(8)
     .nullish()
     .transform((value) => value ?? null),
+  visitorHash: z
+    .string()
+    .max(64)
+    .nullish()
+    .transform((value) => value ?? null),
 });
 
 export type ClickEvent = z.infer<typeof clickEventSchema>;
@@ -36,6 +41,9 @@ export function clickEventToFields(event: ClickEvent): string[] {
   }
   if (event.country !== null) {
     fields.push("country", event.country);
+  }
+  if (event.visitorHash !== null) {
+    fields.push("visitorHash", event.visitorHash);
   }
   return fields;
 }

@@ -6,9 +6,12 @@ import { getAuthenticatedUser } from "./auth.middleware";
 import {
   authResponseSchema,
   authTokensSchema,
+  forgotPasswordBodySchema,
   loginBodySchema,
   refreshBodySchema,
   registerBodySchema,
+  resetPasswordBodySchema,
+  tokenBodySchema,
   userSchema,
 } from "./auth.schemas";
 import type { AuthService } from "./auth.service";
@@ -87,6 +90,78 @@ export function authRoutes(
       },
       async (request, reply) => {
         await service.logout(request.body.refreshToken);
+        return reply.code(204).send();
+      },
+    );
+
+    app.post(
+      "/auth/verify-email",
+      {
+        config: routeConfig,
+        schema: {
+          body: tokenBodySchema,
+          response: {
+            204: z.undefined(),
+            400: errorResponseSchema,
+          },
+        },
+      },
+      async (request, reply) => {
+        await service.verifyEmail(request.body.token);
+        return reply.code(204).send();
+      },
+    );
+
+    app.post(
+      "/auth/resend-verification",
+      {
+        config: routeConfig,
+        preHandler: guard,
+        schema: {
+          response: {
+            204: z.undefined(),
+            401: errorResponseSchema,
+          },
+        },
+      },
+      async (request, reply) => {
+        await service.resendVerificationEmail(getAuthenticatedUser(request).id);
+        return reply.code(204).send();
+      },
+    );
+
+    app.post(
+      "/auth/forgot-password",
+      {
+        config: routeConfig,
+        schema: {
+          body: forgotPasswordBodySchema,
+          response: {
+            204: z.undefined(),
+            400: errorResponseSchema,
+          },
+        },
+      },
+      async (request, reply) => {
+        await service.forgotPassword(request.body.email);
+        return reply.code(204).send();
+      },
+    );
+
+    app.post(
+      "/auth/reset-password",
+      {
+        config: routeConfig,
+        schema: {
+          body: resetPasswordBodySchema,
+          response: {
+            204: z.undefined(),
+            400: errorResponseSchema,
+          },
+        },
+      },
+      async (request, reply) => {
+        await service.resetPassword(request.body.token, request.body.password);
         return reply.code(204).send();
       },
     );

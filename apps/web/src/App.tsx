@@ -6,8 +6,11 @@ import { bootstrapSession } from "@/lib/api";
 import { useAuth } from "@/lib/auth-store";
 import { ApiKeysPage } from "@/pages/ApiKeysPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import { VerifyEmailPage } from "@/pages/VerifyEmailPage";
 
 // Recharts is only needed on the analytics screen; load it on demand.
 const AnalyticsPage = lazy(() =>
@@ -75,6 +78,10 @@ export default function App() {
             </PublicOnly>
           }
         />
+        {/* Reachable while signed in too: the links come from emails. */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/keys" element={<ApiKeysPage />} />

@@ -53,4 +53,11 @@ export class RefreshTokenRepository {
       data: { revokedAt: new Date() },
     });
   }
+
+  async revokeAllForUser(userId: string): Promise<void> {
+    await this.db.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
 }

@@ -33,6 +33,7 @@ async function recordSynchronously(deps: RecordClickDeps): Promise<void> {
       userAgent: deps.event.userAgent,
       referrer: deps.event.referrer,
       country: deps.event.country,
+      visitorHash: deps.event.visitorHash,
       timestamp: new Date(deps.event.timestamp),
     });
   } catch (error) {

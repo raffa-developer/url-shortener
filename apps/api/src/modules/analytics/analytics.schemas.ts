@@ -18,6 +18,7 @@ export const analyticsResponseSchema = z.object({
     to: z.iso.datetime(),
   }),
   totalClicks: z.number().int(),
+  uniqueVisitors: z.number().int(),
   today: z.number().int(),
   yesterday: z.number().int(),
   clicksPerDay: z.array(z.object({ date: z.string(), count: z.number().int() })),

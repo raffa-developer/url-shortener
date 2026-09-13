@@ -137,6 +137,46 @@ export function useLinkPreview(shortCode: string) {
   });
 }
 
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email: string) =>
+      apiFetch<void>("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+        skipAuth: true,
+      }),
+  });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: ({ token, password }: { token: string; password: string }) =>
+      apiFetch<void>("/api/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
+        skipAuth: true,
+      }),
+  });
+}
+
+export function useVerifyEmail() {
+  return useMutation({
+    mutationFn: (token: string) =>
+      apiFetch<void>("/api/auth/verify-email", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+        skipAuth: true,
+      }),
+  });
+}
+
+export function useResendVerification() {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>("/api/auth/resend-verification", { method: "POST" }),
+  });
+}
+
 export function useLogin() {
   return useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>

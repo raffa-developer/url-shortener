@@ -92,6 +92,7 @@ describeWithDb("analytics API (integration)", () => {
     expect(body.link.shortCode).toBe(shortCode);
     expect(body.link.expiresAt).toBeNull();
     expect(body.totalClicks).toBe(1);
+    expect(body.uniqueVisitors).toBe(1);
     expect(body.today).toBe(1);
     expect(body.yesterday).toBe(0);
     expect(body.countries).toEqual([{ country: "PT", count: 1 }]);
@@ -102,6 +103,35 @@ describeWithDb("analytics API (integration)", () => {
       date: toUtcDateKey(startOfUtcDay(new Date())),
       count: 1,
     });
+  });
+
+  it("counts unique visitors per link without storing the IP", async () => {
+    const shortCode = await createLink("analytics-uniques");
+
+    const hit = (userAgent: string) =>
+      ctx.app.inject({
+        method: "GET",
+        url: `/${shortCode}`,
+        headers: { "user-agent": userAgent },
+      });
+
+    await hit(ANDROID_CHROME);
+    await hit(ANDROID_CHROME);
+    await hit(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    );
+
+    await drainClickEvents(ctx);
+
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: `/api/links/${shortCode}/analytics`,
+      headers: bearer(owner.accessToken),
+    });
+
+    const body = response.json();
+    expect(body.totalClicks).toBe(3);
+    expect(body.uniqueVisitors).toBe(2);
   });
 
   it("does not record clicks for unknown or expired links", async () => {

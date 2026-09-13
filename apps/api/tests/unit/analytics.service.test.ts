@@ -22,6 +22,7 @@ const LINK: LinkDTO = {
 class FakeClickRepository {
   created: CreateClickInput[] = [];
   total = 0;
+  uniqueVisitors = 0;
   today = 0;
   yesterday = 0;
   daily: { date: string; count: number }[] = [];
@@ -46,6 +47,10 @@ class FakeClickRepository {
 
   async countTotal(): Promise<number> {
     return this.total;
+  }
+
+  async countUniqueVisitors(): Promise<number> {
+    return this.uniqueVisitors;
   }
 
   async countBetween(_linkId: string, from: Date): Promise<number> {
@@ -139,6 +144,7 @@ describe("AnalyticsService.getLinkAnalytics", () => {
   it("aggregates totals, dimensions and a dense daily series", async () => {
     const repository = new FakeClickRepository();
     repository.total = 12;
+    repository.uniqueVisitors = 7;
     repository.today = 3;
     repository.yesterday = 2;
     repository.daily = [
@@ -168,6 +174,7 @@ describe("AnalyticsService.getLinkAnalytics", () => {
     });
     expect(analytics.range.days).toBe(7);
     expect(analytics.totalClicks).toBe(12);
+    expect(analytics.uniqueVisitors).toBe(7);
     expect(analytics.today).toBe(3);
     expect(analytics.yesterday).toBe(2);
     expect(analytics.clicksPerDay).toHaveLength(7);

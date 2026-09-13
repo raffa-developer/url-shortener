@@ -4,6 +4,7 @@ import { buildApp } from "../../src/app";
 import { REDIRECT_CACHE_PREFIX } from "../../src/cache/redirect-cache";
 import { loadConfig, type AppConfig } from "../../src/config";
 import { createDatabase, type Database } from "../../src/db";
+import type { MailMessage, Mailer } from "../../src/mail/mailer";
 import { AnalyticsService } from "../../src/modules/analytics/analytics.service";
 import { ClickRepository } from "../../src/modules/analytics/click.repository";
 import { LinkRepository } from "../../src/modules/links/link.repository";
@@ -12,10 +13,32 @@ import {
   createRedisClickEventConsumer,
 } from "../../src/queue/click-events";
 
+export class TestMailer implements Mailer {
+  messages: MailMessage[] = [];
+
+  async send(message: MailMessage): Promise<void> {
+    this.messages.push(message);
+  }
+
+  clear(): void {
+    this.messages = [];
+  }
+
+  tokenFromLastMessage(): string {
+    const text = this.messages.at(-1)?.text ?? "";
+    const match = text.match(/token=([A-Za-z0-9_-]+)/);
+    if (!match?.[1]) {
+      throw new Error("No token found in the last email");
+    }
+    return match[1];
+  }
+}
+
 export interface TestContext {
   app: FastifyInstance;
   db: Database;
   config: AppConfig;
+  mailer: TestMailer;
 }
 
 export function hasDatabase(): boolean {
@@ -39,9 +62,10 @@ export async function createTestContext(
     ...overrides,
   });
   const db = createDatabase(config.databaseUrl);
-  const app = await buildApp({ config, db });
+  const mailer = new TestMailer();
+  const app = await buildApp({ config, db, mailer });
   await app.ready();
-  return { app, db, config };
+  return { app, db, config, mailer };
 }
 
 /**
@@ -53,6 +77,7 @@ export async function resetDatabase(ctx: TestContext): Promise<void> {
   await ctx.db.user.deleteMany();
   await clearRedirectCache();
   await clearClickStream(ctx.config.clickEventStreamKey);
+  ctx.mailer.clear();
 }
 
 export async function clearRedirectCache(): Promise<void> {
@@ -136,6 +161,7 @@ export async function drainClickEvents(ctx: TestContext): Promise<number> {
         userAgent: event.userAgent,
         referrer: event.referrer,
         country: event.country,
+        visitorHash: event.visitorHash,
         timestamp: new Date(event.timestamp),
         eventId: metadata.id,
       }),
@@ -151,7 +177,7 @@ export async function drainClickEvents(ctx: TestContext): Promise<number> {
 }
 
 export interface AuthSession {
-  user: { id: string; email: string; createdAt: string };
+  user: { id: string; email: string; emailVerifiedAt: string | null; createdAt: string };
   accessToken: string;
   refreshToken: string;
   tokenType: string;

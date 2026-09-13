@@ -145,4 +145,96 @@ describeWithDb("auth API (integration)", () => {
     });
     expect(refresh.statusCode).toBe(401);
   });
+
+  it("verifies an email end to end", async () => {
+    ctx.mailer.clear();
+    const session = await registerUser(ctx.app, "verify-me@example.com");
+    expect(session.user.emailVerifiedAt).toBeNull();
+    expect(ctx.mailer.messages).toHaveLength(1);
+    expect(ctx.mailer.messages[0]?.text).toContain("/verify-email?token=");
+
+    const verify = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/verify-email",
+      payload: { token: ctx.mailer.tokenFromLastMessage() },
+    });
+    expect(verify.statusCode).toBe(204);
+
+    const me = await ctx.app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: bearer(session.accessToken),
+    });
+    expect(me.json().emailVerifiedAt).not.toBeNull();
+  });
+
+  it("rejects an invalid verification token", async () => {
+    const response = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/verify-email",
+      payload: { token: "not-a-real-token-value-1234567890" },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("resets a forgotten password and revokes existing sessions", async () => {
+    const session = await registerUser(
+      ctx.app,
+      "reset-me@example.com",
+      "original-password-123",
+    );
+
+    const forgot = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/forgot-password",
+      payload: { email: "reset-me@example.com" },
+    });
+    expect(forgot.statusCode).toBe(204);
+    expect(ctx.mailer.messages.at(-1)?.text).toContain("/reset-password?token=");
+
+    const reset = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/reset-password",
+      payload: {
+        token: ctx.mailer.tokenFromLastMessage(),
+        password: "brand-new-password-456",
+      },
+    });
+    expect(reset.statusCode).toBe(204);
+
+    const oldLogin = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "reset-me@example.com", password: "original-password-123" },
+    });
+    expect(oldLogin.statusCode).toBe(401);
+
+    const newLogin = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "reset-me@example.com", password: "brand-new-password-456" },
+    });
+    expect(newLogin.statusCode).toBe(200);
+
+    // The session that existed before the reset is revoked.
+    const refresh = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      payload: { refreshToken: session.refreshToken },
+    });
+    expect(refresh.statusCode).toBe(401);
+  });
+
+  it("does not reveal whether an email exists on forgot-password", async () => {
+    ctx.mailer.clear();
+
+    const response = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/forgot-password",
+      payload: { email: "nobody-here@example.com" },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(ctx.mailer.messages).toHaveLength(0);
+  });
 });

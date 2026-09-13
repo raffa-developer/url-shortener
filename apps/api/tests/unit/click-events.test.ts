@@ -11,6 +11,7 @@ const FULL_EVENT: ClickEvent = {
   userAgent: "curl/8.4.0",
   referrer: "https://www.google.com/search",
   country: "PT",
+  visitorHash: "a1b2c3d4e5f60718293a4b5c6d7e8f90",
 };
 
 describe("click event serialization", () => {
@@ -25,6 +26,7 @@ describe("click event serialization", () => {
       userAgent: null,
       referrer: null,
       country: null,
+      visitorHash: null,
     };
 
     const fields = clickEventToFields(sparse);

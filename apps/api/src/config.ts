@@ -5,6 +5,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().max(65535).default(3000),
   APP_BASE_URL: z.string().min(1).default("http://localhost:3000"),
+  WEB_BASE_URL: z.string().min(1).default("http://localhost:5173"),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().optional(),
   REDIRECT_CACHE_ENABLED: z
@@ -41,6 +42,15 @@ const envSchema = z.object({
   SHORT_CODE_LENGTH: z.coerce.number().int().min(4).max(16).default(7),
   SHORT_CODE_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
   JWT_ACCESS_SECRET: z.string().min(32),
+  VISITOR_HASH_SECRET: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().min(16).optional(),
+  ),
+  MAIL_FROM: z.string().min(1).default("Shortly <no-reply@localhost>"),
+  RESEND_API_KEY: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().min(1).optional(),
+  ),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 });
@@ -49,6 +59,7 @@ export interface AppConfig {
   nodeEnv: "development" | "test" | "production";
   port: number;
   baseUrl: string;
+  webBaseUrl: string;
   databaseUrl: string;
   redisUrl?: string;
   redirectCacheEnabled: boolean;
@@ -65,6 +76,9 @@ export interface AppConfig {
   shortCodeLength: number;
   shortCodeMaxAttempts: number;
   jwtAccessSecret: string;
+  visitorHashSecret: string;
+  mailFrom: string;
+  resendApiKey?: string;
   accessTokenTtlSeconds: number;
   refreshTokenTtlDays: number;
 }
@@ -84,6 +98,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     nodeEnv: env.NODE_ENV,
     port: env.PORT,
     baseUrl: env.APP_BASE_URL.replace(/\/+$/, ""),
+    webBaseUrl: env.WEB_BASE_URL.replace(/\/+$/, ""),
     databaseUrl: env.DATABASE_URL,
     redisUrl: env.REDIS_URL,
     redirectCacheEnabled: env.REDIRECT_CACHE_ENABLED,
@@ -100,6 +115,11 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     shortCodeLength: env.SHORT_CODE_LENGTH,
     shortCodeMaxAttempts: env.SHORT_CODE_MAX_ATTEMPTS,
     jwtAccessSecret: env.JWT_ACCESS_SECRET,
+    // Falls back to the JWT secret so unique visitors work without extra setup;
+    // rotate it to invalidate historical visitor linkage.
+    visitorHashSecret: env.VISITOR_HASH_SECRET ?? env.JWT_ACCESS_SECRET,
+    mailFrom: env.MAIL_FROM,
+    resendApiKey: env.RESEND_API_KEY,
     accessTokenTtlSeconds: env.ACCESS_TOKEN_TTL_SECONDS,
     refreshTokenTtlDays: env.REFRESH_TOKEN_TTL_DAYS,
   };

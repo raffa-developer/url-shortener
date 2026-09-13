@@ -9,6 +9,7 @@ const EVENT: ClickEvent = {
   userAgent: "curl/8.4.0",
   referrer: null,
   country: "PT",
+  visitorHash: "a1b2c3d4e5f60718293a4b5c6d7e8f90",
 };
 
 class FakePublisher implements ClickEventPublisher {

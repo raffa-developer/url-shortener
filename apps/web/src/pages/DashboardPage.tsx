@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, Link2, Plus, Search, X } from "lucide-react";
+import { AlertCircle, Link2, MailWarning, Plus, Search, X } from "lucide-react";
+import { toast } from "sonner";
 import { CreateLinkDialog } from "@/components/links/create-link-dialog";
 import { LinksTable } from "@/components/links/links-table";
 import { PageHeader } from "@/components/page-header";
@@ -16,12 +17,15 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useLinks } from "@/lib/queries";
+import { useAuth } from "@/lib/auth-store";
+import { useLinks, useResendVerification } from "@/lib/queries";
 import type { LinkSort, LinkStatusFilter } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
 export function DashboardPage() {
+  const { user } = useAuth();
+  const resendVerification = useResendVerification();
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<LinkStatusFilter>("all");
@@ -53,8 +57,34 @@ export function DashboardPage() {
     setSort("newest");
   }
 
+  function handleResendVerification(): void {
+    resendVerification.mutate(undefined, {
+      onSuccess: () => toast.success("Verification email sent"),
+    });
+  }
+
   return (
     <div className="space-y-6">
+      {user && user.emailVerifiedAt === null ? (
+        <Alert className="border-primary/30 bg-primary/5">
+          <MailWarning />
+          <AlertTitle>Verify your email address</AlertTitle>
+          <AlertDescription>
+            <div className="flex flex-wrap items-center gap-3">
+              <span>We sent a confirmation link to {user.email}.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResendVerification}
+                disabled={resendVerification.isPending}
+              >
+                {resendVerification.isPending ? "Sending…" : "Resend email"}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <PageHeader
         title="My Links"
         description="Create short links and click a row to explore its analytics."

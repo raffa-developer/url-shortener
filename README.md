@@ -129,6 +129,9 @@ cp apps/api/.env.example apps/api/.env
 
 Set a real `JWT_ACCESS_SECRET` (at least 32 characters), e.g. `openssl rand -base64 48`.
 
+Verification and password-reset emails are logged to the API console unless you
+set `RESEND_API_KEY` (and optionally `MAIL_FROM`) in the env file.
+
 ### 4. Apply the database schema
 
 ```bash
@@ -176,6 +179,9 @@ Public:
 | `POST` | `/api/auth/login`    | Exchange credentials for tokens   | `200`   |
 | `POST` | `/api/auth/refresh`  | Rotate a refresh token            | `200`   |
 | `POST` | `/api/auth/logout`   | Revoke a refresh token            | `204`   |
+| `POST` | `/api/auth/verify-email` | Confirm an email address        | `204`   |
+| `POST` | `/api/auth/forgot-password` | Email a reset link (always 204) | `204` |
+| `POST` | `/api/auth/reset-password` | Set a new password from a token | `204` |
 | `GET`  | `/:code`             | Redirect to the destination       | `302`   |
 | `GET`  | `/health`            | Liveness                          | `200`   |
 | `GET`  | `/health/ready`      | Readiness (checks the database)   | `200` / `503` |
@@ -185,6 +191,7 @@ Require `Authorization: Bearer <accessToken>` or `X-API-Key: sk_...`:
 | Method | Path              | Description                          | Success |
 | ------ | ----------------- | ------------------------------------ | ------- |
 | `GET`  | `/api/auth/me`    | Current user                         | `200`   |
+| `POST` | `/api/auth/resend-verification` | Re-send the verification email | `204` |
 | `POST` | `/api/links`      | Create a short link                  | `201`   |
 | `GET`  | `/api/links`      | List / search / filter / sort links  | `200`   |
 | `GET`  | `/api/links/:code`| Fetch metadata for one of your links | `200`   |
@@ -280,6 +287,15 @@ Errors use a consistent envelope:
 - **Authorization is server-side.** All `/api/links` routes require a valid
   bearer token or API key, queries are scoped by `userId`, and reading another
   user's link returns `403 Forbidden`. The redirect endpoint stays public.
+- **Email verification** issues a single-use, 24-hour token (only its SHA-256
+  hash is stored). `POST /api/auth/verify-email` marks the account verified;
+  unverified accounts still work, but the dashboard shows a resend banner.
+- **Password reset** issues a single-use, 1-hour token; redeeming it updates the
+  password and revokes **every** refresh token for the account. Requesting a new
+  token invalidates the previous one, and `forgot-password` always returns `204`
+  so it cannot be used to enumerate accounts.
+- **Email delivery is pluggable.** Development logs messages to the console;
+  setting `RESEND_API_KEY` switches to the Resend API. Links use `WEB_BASE_URL`.
 
 ### Shortening
 
@@ -355,6 +371,10 @@ Errors use a consistent envelope:
   so device and browser remain independent dimensions.
 - **Referrers are collapsed to sources** at query time (`www.google.com` and
   `google.com/search` both become `google.com`; absent referrers are `direct`).
+- **Unique visitors are pseudonymous.** Each click stores a link-scoped hash of
+  `secret | linkId | ip | userAgent` (truncated SHA-256). No IP is stored, hashes
+  cannot be joined across links, and rotating `VISITOR_HASH_SECRET` resets all
+  linkage.
 - **Aggregates use indexed SQL.** `Click` is indexed by `(linkId, timestamp)` and
   per-dimension `(linkId, country|device|browser)`. The daily series is a
   `date_trunc` group-by that is expanded into a dense, gap-filled range for
@@ -446,27 +466,28 @@ users              links                      refresh_tokens               click
 id                 id                         id                           id
 email (unique)     user_id  → users.id        user_id  → users.id          link_id  → links.id
 password_hash      short_code (unique)        token_hash (unique, sha256)  timestamp
-created_at         destination_url            expires_at                   country
-                   created_at                 revoked_at                   device
+email_verified_at  destination_url            expires_at                   country
+created_at         created_at                 revoked_at                   device
                    expires_at                 replaced_by_token_hash       browser
                                               created_at                   referrer
                                                                            event_id (unique)
+                                                                           visitor_hash
 
-api_keys
-──────────────────
-id
-user_id  → users.id
-name
-prefix
-key_hash (unique, sha256)
-created_at
-last_used_at
-revoked_at
+verification_tokens                 api_keys
+──────────────────────────          ──────────────────
+id                                  id
+user_id  → users.id                 user_id  → users.id
+type (email|password_reset)         name
+token_hash (unique, sha256)         prefix
+expires_at                          key_hash (unique, sha256)
+used_at                             created_at
+created_at                          last_used_at
+                                    revoked_at
 ```
 
-Deleting a user cascades to their links, refresh tokens and API keys; deleting a
-link cascades to its clicks. Link previews are cached in Redis only and never
-persisted.
+Deleting a user cascades to their links, refresh tokens, API keys and
+verification tokens; deleting a link cascades to its clicks. Link previews are
+cached in Redis only and never persisted.
 
 ## Scripts
 
@@ -490,19 +511,21 @@ persisted.
 
 ## Testing
 
-Unit tests run without any infrastructure (133 API + 18 web tests):
+Unit tests run without any infrastructure (145 API + 18 web tests):
 
 ```bash
 npm run test:unit
 ```
 
 Integration tests exercise the real API against PostgreSQL and Redis using
-`app.inject()` (no network). They cover the auth lifecycle, API key lifecycle,
+`app.inject()` (no network). They cover the auth lifecycle (including email
+verification and password reset with a captured test mailer), API key lifecycle,
 rate limiting, link ownership isolation, link create/update/delete with cache
-invalidation, list search/filter/sort/pagination, preview SSRF guards, expiry,
-redirects, click capture, analytics aggregation, cache-aside behaviour including
-concurrent redirects, and the event pipeline (stream publishing, at-least-once
-processing, dead-lettering and idempotent redelivery) — 43 tests.
+invalidation, list search/filter/sort/pagination, preview SSRF guards, unique
+visitors, expiry, redirects, click capture, analytics aggregation, cache-aside
+behaviour including concurrent redirects, and the event pipeline (stream
+publishing, at-least-once processing, dead-lettering and idempotent redelivery)
+— 48 tests.
 
 **They reset every table in the database they run against**, so always point
 them at a dedicated test database, never at your development data. One-time
@@ -525,8 +548,9 @@ npm run test:integration
 
 End-to-end tests drive the real UI in a browser against the API, worker and
 dashboard (registration, link create/edit/delete, dashboard search, QR dialog,
-redirect + analytics, API key create/use/revoke). Playwright starts the dev stack
-automatically — Postgres and Redis must be running and ports `3000`/`5173` free:
+redirect + analytics, API key create/use/revoke, forgot/reset/verify flows).
+Playwright starts the dev stack automatically — Postgres and Redis must be
+running and ports `3000`/`5173` free:
 
 ```bash
 npm run infra:up

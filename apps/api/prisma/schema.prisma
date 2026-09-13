@@ -8,13 +8,29 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String
-  createdAt     DateTime       @default(now())
-  links         Link[]
-  refreshTokens RefreshToken[]
-  apiKeys       ApiKey[]
+  id                 String              @id @default(cuid())
+  email              String              @unique
+  passwordHash       String
+  emailVerifiedAt    DateTime?
+  createdAt          DateTime            @default(now())
+  links              Link[]
+  refreshTokens      RefreshToken[]
+  apiKeys            ApiKey[]
+  verificationTokens VerificationToken[]
+}
+
+model VerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
+  @@index([expiresAt])
 }
 
 model ApiKey {
@@ -59,19 +75,22 @@ model Link {
 }
 
 model Click {
-  id        String   @id @default(cuid())
-  linkId    String
-  link      Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
-  timestamp DateTime @default(now())
-  country   String?
-  device    String
-  browser   String
-  referrer  String?
+  id          String   @id @default(cuid())
+  linkId      String
+  link        Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  timestamp   DateTime @default(now())
+  country     String?
+  device      String
+  browser     String
+  referrer    String?
   // Stream entry id, used to make at-least-once event processing idempotent.
-  eventId   String?  @unique
+  eventId     String?  @unique
+  // Link-scoped salted hash of IP + user agent; no raw IP is stored.
+  visitorHash String?
 
   @@index([linkId, timestamp])
   @@index([linkId, country])
   @@index([linkId, device])
   @@index([linkId, browser])
+  @@index([linkId, visitorHash])
 }

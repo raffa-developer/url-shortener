@@ -21,6 +21,8 @@ import { authRoutes } from "./modules/auth/auth.routes";
 import { AuthService } from "./modules/auth/auth.service";
 import { RefreshTokenRepository } from "./modules/auth/refresh-token.repository";
 import { TokenService } from "./modules/auth/token.service";
+import { VerificationTokenRepository } from "./modules/auth/verification-token.repository";
+import { createMailer, type Mailer } from "./mail/mailer";
 import { apiKeyRoutes } from "./modules/api-keys/api-key.routes";
 import { ApiKeyRepository } from "./modules/api-keys/api-key.repository";
 import { ApiKeyService } from "./modules/api-keys/api-key.service";
@@ -41,9 +43,15 @@ import { createRedisClickEventPublisher } from "./queue/click-events";
 export interface BuildAppOptions {
   config: AppConfig;
   db: Database;
+  /** Test hook: capture outbound mail instead of using a real provider. */
+  mailer?: Mailer;
 }
 
-export async function buildApp({ config, db }: BuildAppOptions): Promise<FastifyInstance> {
+export async function buildApp({
+  config,
+  db,
+  mailer: mailerOverride,
+}: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({
     ...(config.nodeEnv === "test"
       ? { logger: false as const }
@@ -126,13 +134,21 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
 
   const userRepository = new UserRepository(db);
   const refreshTokenRepository = new RefreshTokenRepository(db);
+  const verificationTokenRepository = new VerificationTokenRepository(db);
   const apiKeyRepository = new ApiKeyRepository(db);
   const tokenService = new TokenService(config);
+  const mailer = mailerOverride ?? createMailer(config, app.log);
   const authService = new AuthService(
     userRepository,
     refreshTokenRepository,
+    verificationTokenRepository,
     tokenService,
+    mailer,
     config,
+    {
+      onError: (error, context) =>
+        app.log.warn({ err: error, context }, "Outbound email failed"),
+    },
   );
   const apiKeyService = new ApiKeyService(apiKeyRepository);
   const guard = createAuthGuard(tokenService, apiKeyService);
@@ -209,12 +225,12 @@ export async function buildApp({ config, db }: BuildAppOptions): Promise<Fastify
   await app.register(apiKeyRoutes(apiKeyService, guard), { prefix: "/api" });
   await app.register(linkRoutes(linkService, previewService, guard), { prefix: "/api" });
   await app.register(analyticsRoutes(analyticsService, guard), { prefix: "/api" });
-  await app.register(redirectRoutes(
-    redirectService,
-    analyticsService,
-    clickEventPublisher,
-    config.geoipFallbackCountry,
-  ));
+  await app.register(
+    redirectRoutes(redirectService, analyticsService, clickEventPublisher, {
+      geoipFallbackCountry: config.geoipFallbackCountry,
+      visitorHashSecret: config.visitorHashSecret,
+    }),
+  );
 
   return app;
 }

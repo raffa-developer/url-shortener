@@ -40,6 +40,7 @@ async function main(): Promise<void> {
         userAgent: event.userAgent,
         referrer: event.referrer,
         country: event.country,
+        visitorHash: event.visitorHash,
         timestamp: new Date(event.timestamp),
         eventId: metadata.id,
       }),
