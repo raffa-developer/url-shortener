@@ -1,0 +1,45 @@
+{
+  "name": "url-shortener",
+  "version": "0.1.0",
+  "private": true,
+  "description": "URL shortener + analytics platform (modular monolith)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @url-shortener/api",
+    "dev:api": "npm run dev -w @url-shortener/api",
+    "dev:worker": "npm run dev:worker -w @url-shortener/api",
+    "dev:web": "npm run dev -w @url-shortener/web",
+    "dev:all": "concurrently -n api,worker,web -c blue,yellow,magenta \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:web\"",
+    "build": "npm run build -w @url-shortener/api && npm run build -w @url-shortener/web",
+    "build:api": "npm run build -w @url-shortener/api",
+    "build:web": "npm run build -w @url-shortener/web",
+    "start": "npm run start -w @url-shortener/api",
+    "start:worker": "npm run start:worker -w @url-shortener/api",
+    "typecheck": "npm run typecheck -w @url-shortener/api && npm run typecheck -w @url-shortener/shared && npm run typecheck -w @url-shortener/web",
+    "test": "npm run test -w @url-shortener/api && npm run test -w @url-shortener/web",
+    "test:unit": "npm run test -w @url-shortener/api && npm run test -w @url-shortener/web",
+    "test:integration": "npm run test:integration -w @url-shortener/api",
+    "test:e2e": "npm run test:e2e -w @url-shortener/web",
+    "benchmark:redirect": "npm run benchmark -w @url-shortener/api",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:migrate": "npm run db:migrate -w @url-shortener/api",
+    "db:generate": "npm run db:generate -w @url-shortener/api",
+    "db:cleanup-test-data": "npm run db:cleanup-test-data -w @url-shortener/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.10.0": true,
+    "esbuild@0.27.7": true,
+    "esbuild@0.28.2": true,
+    "prisma@7.10.0": true
+  }
+}
