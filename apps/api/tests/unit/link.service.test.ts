@@ -76,11 +76,14 @@ class FakeLinkRepository {
 
   async list(params: {
     userId: string;
-    limit: number;
-    cursor?: string;
-  }): Promise<{ data: LinkRecord[]; nextCursor: string | null }> {
+    page: number;
+    pageSize: number;
+    q?: string;
+    status: string;
+    sort: string;
+  }): Promise<{ data: LinkRecord[]; total: number }> {
     const data = this.records.filter((record) => record.userId === params.userId);
-    return { data, nextCursor: null };
+    return { data, total: data.length };
   }
 }
 
@@ -192,9 +195,15 @@ describe("LinkService ownership", () => {
     await service.create({ destinationUrl: "https://a.example" }, OWNER);
     await service.create({ destinationUrl: "https://b.example" }, OTHER);
 
-    const ownerLinks = await service.list(OWNER, { limit: 20 });
+    const ownerLinks = await service.list(OWNER, {
+      page: 1,
+      pageSize: 20,
+      status: "all",
+      sort: "newest",
+    });
     expect(ownerLinks.data).toHaveLength(1);
     expect(ownerLinks.data[0]?.destinationUrl).toBe("https://a.example/");
+    expect(ownerLinks.total).toBe(1);
   });
 
   it("returns metadata for the owner", async () => {

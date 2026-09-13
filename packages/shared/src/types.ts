@@ -15,11 +15,19 @@ export interface CreateLinkInput {
 }
 
 export interface ListLinksQuery {
-  limit?: number;
-  cursor?: string;
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: LinkStatusFilter;
+  sort?: LinkSort;
 }
+
+export type LinkStatusFilter = "all" | "active" | "expiring" | "expired";
+export type LinkSort = "newest" | "oldest" | "clicks" | "expires";
 
 export interface PaginatedLinks {
   data: LinkDTO[];
-  nextCursor: string | null;
+  page: number;
+  pageSize: number;
+  total: number;
 }

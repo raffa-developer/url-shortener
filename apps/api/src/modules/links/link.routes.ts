@@ -50,7 +50,9 @@ export function linkRoutes(
           response: {
             200: z.object({
               data: z.array(linkSchema),
-              nextCursor: z.string().nullable(),
+              page: z.number().int(),
+              pageSize: z.number().int(),
+              total: z.number().int(),
             }),
             401: errorResponseSchema,
           },

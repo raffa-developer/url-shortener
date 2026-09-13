@@ -30,9 +30,20 @@ export const createLinkBodySchema = z.object({
   expiresAt: z.iso.datetime().nullable().optional(),
 });
 
+export const linkStatusFilterSchema = z
+  .enum(["all", "active", "expiring", "expired"])
+  .default("all");
+
+export const linkSortSchema = z
+  .enum(["newest", "oldest", "clicks", "expires"])
+  .default("newest");
+
 export const listLinksQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  cursor: z.string().min(1).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().trim().min(1).max(100).optional(),
+  status: linkStatusFilterSchema,
+  sort: linkSortSchema,
 });
 
 export const updateLinkBodySchema = z

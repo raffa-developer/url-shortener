@@ -1,4 +1,9 @@
-export type { LinkDTO, PaginatedLinks } from "@url-shortener/shared";
+export type {
+  LinkDTO,
+  LinkSort,
+  LinkStatusFilter,
+  PaginatedLinks,
+} from "@url-shortener/shared";
 
 export interface AuthUser {
   id: string;

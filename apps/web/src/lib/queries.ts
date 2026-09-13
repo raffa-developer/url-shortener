@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import {
   apiFetch,
   login as loginRequest,
@@ -13,6 +14,8 @@ import type {
   CreatedApiKey,
   LinkDTO,
   LinkPreview,
+  LinkSort,
+  LinkStatusFilter,
   PaginatedLinks,
   UpdateLinkInput,
 } from "./types";
@@ -23,10 +26,35 @@ export interface CreateLinkInput {
   expiresAt?: string | null;
 }
 
-export function useLinks() {
+export interface LinksQuery {
+  page: number;
+  pageSize: number;
+  q?: string;
+  status?: LinkStatusFilter;
+  sort?: LinkSort;
+}
+
+export function useLinks(params: LinksQuery) {
+  const searchParams = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+  if (params.q) {
+    searchParams.set("q", params.q);
+  }
+  if (params.status) {
+    searchParams.set("status", params.status);
+  }
+  if (params.sort) {
+    searchParams.set("sort", params.sort);
+  }
+  const query = searchParams.toString();
+
   return useQuery({
-    queryKey: ["links"],
-    queryFn: () => apiFetch<PaginatedLinks>("/api/links?limit=100"),
+    queryKey: ["links", query],
+    queryFn: () => apiFetch<PaginatedLinks>(`/api/links?${query}`),
+    // Keeps the previous page visible while typing or changing pages.
+    placeholderData: keepPreviousData,
   });
 }
 

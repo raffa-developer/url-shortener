@@ -1,4 +1,6 @@
+import type { LinkSort, LinkStatusFilter } from "@url-shortener/shared";
 import type { Database } from "../../db";
+import { Prisma } from "../../generated/prisma/client";
 
 export interface LinkRecord {
   id: string;
@@ -17,6 +19,16 @@ export interface CreateLinkRecordInput {
   expiresAt: Date | null;
 }
 
+export interface ListLinksParams {
+  userId: string;
+  page: number;
+  pageSize: number;
+  q?: string;
+  status: LinkStatusFilter;
+  sort: LinkSort;
+  now?: Date;
+}
+
 interface LinkRow {
   id: string;
   userId: string;
@@ -29,6 +41,8 @@ interface LinkRow {
 interface LinkWithCountRow extends LinkRow {
   _count: { clicks: number };
 }
+
+const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 const linkSelect = {
   id: true,
@@ -47,6 +61,51 @@ const linkWithCountSelect = {
 function toRecord(row: LinkWithCountRow): LinkRecord {
   const { _count, ...link } = row;
   return { ...link, clickCount: _count.clicks };
+}
+
+function buildWhere(params: ListLinksParams): Prisma.LinkWhereInput {
+  const now = params.now ?? new Date();
+  const where: Prisma.LinkWhereInput = { userId: params.userId };
+
+  if (params.q) {
+    where.OR = [
+      { shortCode: { contains: params.q, mode: "insensitive" } },
+      { destinationUrl: { contains: params.q, mode: "insensitive" } },
+    ];
+  }
+
+  switch (params.status) {
+    case "active":
+      where.AND = [{ OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] }];
+      break;
+    case "expiring":
+      where.expiresAt = {
+        gt: now,
+        lte: new Date(now.getTime() + EXPIRING_WINDOW_MS),
+      };
+      break;
+    case "expired":
+      where.expiresAt = { lte: now };
+      break;
+    case "all":
+      break;
+  }
+
+  return where;
+}
+
+function buildOrderBy(sort: LinkSort): Prisma.LinkOrderByWithRelationInput[] {
+  switch (sort) {
+    case "oldest":
+      return [{ createdAt: "asc" }, { id: "asc" }];
+    case "clicks":
+      return [{ clicks: { _count: "desc" } }, { createdAt: "desc" }];
+    case "expires":
+      return [{ expiresAt: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }];
+    case "newest":
+    default:
+      return [{ createdAt: "desc" }, { id: "desc" }];
+  }
 }
 
 export class LinkRepository {
@@ -81,27 +140,22 @@ export class LinkRepository {
     await this.db.link.delete({ where: { shortCode } });
   }
 
-  async list(params: {
-    userId: string;
-    limit: number;
-    cursor?: string;
-  }): Promise<{ data: LinkRecord[]; nextCursor: string | null }> {
-    const rows = await this.db.link.findMany({
-      where: { userId: params.userId },
-      take: params.limit + 1,
-      ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: linkWithCountSelect,
-    });
+  async list(
+    params: ListLinksParams,
+  ): Promise<{ data: LinkRecord[]; total: number }> {
+    const where = buildWhere(params);
 
-    const hasMore = rows.length > params.limit;
-    const page = hasMore ? rows.slice(0, params.limit) : rows;
-    const data = page.map(toRecord);
-    const last = data.at(-1);
+    const [rows, total] = await Promise.all([
+      this.db.link.findMany({
+        where,
+        orderBy: buildOrderBy(params.sort),
+        skip: (params.page - 1) * params.pageSize,
+        take: params.pageSize,
+        select: linkWithCountSelect,
+      }),
+      this.db.link.count({ where }),
+    ]);
 
-    return {
-      data,
-      nextCursor: hasMore && last ? last.id : null,
-    };
+    return { data: rows.map(toRecord), total };
   }
 }

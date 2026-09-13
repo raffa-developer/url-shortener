@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, QrCode, RefreshCw } from "lucide-react";
 import { BreakdownCard } from "@/components/analytics/breakdown-card";
 import { ClicksChart } from "@/components/analytics/clicks-chart";
 import { LinkPreviewCard } from "@/components/analytics/link-preview-card";
+import { QrCodeDialog } from "@/components/links/qr-code-dialog";
 import { CopyButton } from "@/components/copy-button";
 import { ExpiryBadge } from "@/components/expiry-badge";
 import { StatCard } from "@/components/stat-card";
@@ -20,6 +21,7 @@ const RANGES = [7, 30, 90];
 export function AnalyticsPage() {
   const { shortCode = "" } = useParams();
   const [days, setDays] = useState(30);
+  const [qrOpen, setQrOpen] = useState(false);
   const analytics = useAnalytics(shortCode, days);
 
   if (analytics.isPending) {
@@ -76,10 +78,23 @@ export function AnalyticsPage() {
               <RefreshCw className={cn(analytics.isFetching && "animate-spin")} />
               Refresh
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setQrOpen(true)}>
+              <QrCode />
+              QR
+            </Button>
             <CopyButton value={data.link.shortUrl} label="Copy short URL" />
           </div>
         </div>
       </div>
+
+      <QrCodeDialog
+        target={
+          qrOpen
+            ? { shortCode: data.link.shortCode, shortUrl: data.link.shortUrl }
+            : null
+        }
+        onOpenChange={(open) => setQrOpen(open)}
+      />
 
       <LinkPreviewCard
         shortCode={data.link.shortCode}

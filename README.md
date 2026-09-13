@@ -186,7 +186,7 @@ Require `Authorization: Bearer <accessToken>` or `X-API-Key: sk_...`:
 | ------ | ----------------- | ------------------------------------ | ------- |
 | `GET`  | `/api/auth/me`    | Current user                         | `200`   |
 | `POST` | `/api/links`      | Create a short link                  | `201`   |
-| `GET`  | `/api/links`      | List your links (cursor pagination)  | `200`   |
+| `GET`  | `/api/links`      | List / search / filter / sort links  | `200`   |
 | `GET`  | `/api/links/:code`| Fetch metadata for one of your links | `200`   |
 | `PATCH`| `/api/links/:code`| Edit destination and/or expiry       | `200`   |
 | `DELETE`| `/api/links/:code`| Delete a link and its clicks        | `204`   |
@@ -198,6 +198,11 @@ Require `Authorization: Bearer <accessToken>` or `X-API-Key: sk_...`:
 
 Interactive OpenAPI documentation (generated from the same Zod schemas the API
 validates with) is served at `/docs`.
+
+The links list supports `?page` and `?pageSize`, free-text `?q=` (matches alias
+or destination), `?status=all|active|expiring|expired` (`expiring` means within
+7 days) and `?sort=newest|oldest|clicks|expires` (null expiries last), returning
+`{ data, page, pageSize, total }`.
 
 Rate limits: `100 requests / minute / IP` globally, `10 / minute / IP` on
 `register`, `login` and `refresh`, and `30 / minute` for previews (they make the
@@ -383,6 +388,10 @@ Errors use a consistent envelope:
   same-origin requests and no CORS setup is needed in development.
 - **Recharts is code-split.** The analytics view is lazy-loaded so the chart
   code loads on demand.
+- **Dashboard search, filters and sorting are server-side.** Search is debounced
+  and the previous page stays visible while the next one loads
+  (`keepPreviousData`). QR codes are rendered client-side (SVG canvas) and
+  exported as PNG from the same dialog.
 - **Server state lives in TanStack Query**, which handles caching, retries and
   invalidation (creating, editing or deleting a link refetches the list
   automatically).
@@ -481,7 +490,7 @@ persisted.
 
 ## Testing
 
-Unit tests run without any infrastructure (133 API + 14 web tests):
+Unit tests run without any infrastructure (133 API + 18 web tests):
 
 ```bash
 npm run test:unit
@@ -490,10 +499,10 @@ npm run test:unit
 Integration tests exercise the real API against PostgreSQL and Redis using
 `app.inject()` (no network). They cover the auth lifecycle, API key lifecycle,
 rate limiting, link ownership isolation, link create/update/delete with cache
-invalidation, preview SSRF guards, expiry, redirects, click capture, analytics
-aggregation, cache-aside behaviour including concurrent redirects, and the event
-pipeline (stream publishing, at-least-once processing, dead-lettering and
-idempotent redelivery) — 42 tests.
+invalidation, list search/filter/sort/pagination, preview SSRF guards, expiry,
+redirects, click capture, analytics aggregation, cache-aside behaviour including
+concurrent redirects, and the event pipeline (stream publishing, at-least-once
+processing, dead-lettering and idempotent redelivery) — 43 tests.
 
 **They reset every table in the database they run against**, so always point
 them at a dedicated test database, never at your development data. One-time
@@ -515,9 +524,9 @@ npm run test:integration
 ```
 
 End-to-end tests drive the real UI in a browser against the API, worker and
-dashboard (registration, link create/edit/delete, redirect + analytics, API key
-create/use/revoke). Playwright starts the dev stack automatically — Postgres and
-Redis must be running and ports `3000`/`5173` free:
+dashboard (registration, link create/edit/delete, dashboard search, QR dialog,
+redirect + analytics, API key create/use/revoke). Playwright starts the dev stack
+automatically — Postgres and Redis must be running and ports `3000`/`5173` free:
 
 ```bash
 npm run infra:up

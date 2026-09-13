@@ -9,6 +9,8 @@ import {
   normalizeUrl,
   randomShortCode,
   type LinkDTO,
+  type LinkSort,
+  type LinkStatusFilter,
   type PaginatedLinks,
 } from "@url-shortener/shared";
 import type { AppConfig } from "../../config";
@@ -60,10 +62,21 @@ export class LinkService {
 
   async list(
     userId: string,
-    params: { limit: number; cursor?: string },
+    params: {
+      page: number;
+      pageSize: number;
+      q?: string;
+      status: LinkStatusFilter;
+      sort: LinkSort;
+    },
   ): Promise<PaginatedLinks> {
-    const { data, nextCursor } = await this.repository.list({ ...params, userId });
-    return { data: data.map((record) => this.toDTO(record)), nextCursor };
+    const { data, total } = await this.repository.list({ ...params, userId });
+    return {
+      data: data.map((record) => this.toDTO(record)),
+      page: params.page,
+      pageSize: params.pageSize,
+      total,
+    };
   }
 
   async getByShortCode(shortCode: string, userId: string): Promise<LinkDTO> {

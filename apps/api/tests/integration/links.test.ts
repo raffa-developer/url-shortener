@@ -224,6 +224,107 @@ describeWithDb("links API (integration)", () => {
     ).toBe(false);
   });
 
+  it("supports search, status filters, sorting and pagination", async () => {
+    const create = async (alias: string, destinationUrl: string): Promise<void> => {
+      const response = await ctx.app.inject({
+        method: "POST",
+        url: "/api/links",
+        headers: bearer(owner.accessToken),
+        payload: { destinationUrl, customAlias: alias },
+      });
+      expect(response.statusCode).toBe(201);
+    };
+
+    await create("list-alpha", "https://alpha.example/");
+    await create("list-beta", "https://beta.example/marketing");
+    await create("list-gamma", "https://gamma.example/");
+    await create("list-expired", "https://expired-old.example/");
+
+    await ctx.db.link.update({
+      where: { shortCode: "list-expired" },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+
+    const beta = await ctx.db.link.findUniqueOrThrow({ where: { shortCode: "list-beta" } });
+    const alpha = await ctx.db.link.findUniqueOrThrow({ where: { shortCode: "list-alpha" } });
+    await ctx.db.click.createMany({
+      data: [
+        ...Array.from({ length: 3 }, () => ({
+          linkId: beta.id,
+          device: "desktop",
+          browser: "Chrome",
+          country: null,
+          referrer: null,
+        })),
+        {
+          linkId: alpha.id,
+          device: "desktop",
+          browser: "Chrome",
+          country: null,
+          referrer: null,
+        },
+      ],
+    });
+
+    const search = await ctx.app.inject({
+      url: "/api/links?q=marketing",
+      headers: bearer(owner.accessToken),
+    });
+    expect(search.json().data).toHaveLength(1);
+    expect(search.json().data[0].shortCode).toBe("list-beta");
+
+    const expiredOnly = await ctx.app.inject({
+      url: "/api/links?q=list-expired&status=expired",
+      headers: bearer(owner.accessToken),
+    });
+    expect(expiredOnly.json().total).toBe(1);
+    expect(expiredOnly.json().data[0].shortCode).toBe("list-expired");
+
+    const activeOnly = await ctx.app.inject({
+      url: "/api/links?q=list-expired&status=active",
+      headers: bearer(owner.accessToken),
+    });
+    expect(activeOnly.json().data).toHaveLength(0);
+
+    const expiring = await ctx.app.inject({
+      url: "/api/links?status=expiring",
+      headers: bearer(owner.accessToken),
+    });
+    expect(expiring.json().data).toHaveLength(0);
+
+    const byClicks = await ctx.app.inject({
+      url: "/api/links?q=list-&sort=clicks&pageSize=100",
+      headers: bearer(owner.accessToken),
+    });
+    expect(byClicks.json().data[0].shortCode).toBe("list-beta");
+    expect(byClicks.json().data[0].clickCount).toBe(3);
+
+    // null expiries sort last, so the expired link is first.
+    const byExpires = await ctx.app.inject({
+      url: "/api/links?q=list-&sort=expires&pageSize=100",
+      headers: bearer(owner.accessToken),
+    });
+    expect(byExpires.json().data[0].shortCode).toBe("list-expired");
+
+    const page1 = await ctx.app.inject({
+      url: "/api/links?q=list-&pageSize=2&page=1&sort=newest",
+      headers: bearer(owner.accessToken),
+    });
+    expect(page1.json().total).toBe(4);
+    expect(page1.json().page).toBe(1);
+    expect(page1.json().pageSize).toBe(2);
+    expect(page1.json().data).toHaveLength(2);
+
+    const page2 = await ctx.app.inject({
+      url: "/api/links?q=list-&pageSize=2&page=2&sort=newest",
+      headers: bearer(owner.accessToken),
+    });
+    const codes = [...page1.json().data, ...page2.json().data].map(
+      (link: { shortCode: string }) => link.shortCode,
+    );
+    expect(new Set(codes).size).toBe(4);
+  });
+
   it("never fetches private addresses for a preview", async () => {
     await ctx.app.inject({
       method: "POST",

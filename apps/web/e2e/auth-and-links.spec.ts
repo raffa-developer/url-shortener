@@ -29,6 +29,17 @@ test("a new user can register, shorten a link and see analytics", async ({
 
   await expect(page.locator("tbody tr", { hasText: `/${alias}` })).toBeVisible();
 
+  // Search and clear filters on the dashboard.
+  const search = page.getByLabel("Search links");
+  await search.fill(alias);
+  await expect(page.locator("tbody tr", { hasText: `/${alias}` })).toBeVisible();
+
+  await search.fill("definitely-no-match");
+  await expect(page.getByText("No links match your filters")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(page.locator("tbody tr", { hasText: `/${alias}` })).toBeVisible();
+
   // Hit the short link through the API to record a click.
   const redirect = await request.get(`http://localhost:3000/${alias}`, {
     maxRedirects: 0,
@@ -49,6 +60,14 @@ test("a new user can register, shorten a link and see analytics", async ({
   await expect(page.getByRole("heading", { name: "My Links" })).toBeVisible();
 
   const row = page.locator("tbody tr", { hasText: `/${alias}` });
+
+  // QR code dialog.
+  await row.getByRole("button", { name: "Open menu" }).click();
+  await page.getByRole("menuitem", { name: "QR code" }).click();
+  await expect(page.getByRole("dialog").locator("canvas")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Edit the link.
   await row.getByRole("button", { name: "Open menu" }).click();
   await page.getByRole("menuitem", { name: "Edit" }).click();
   await page.getByLabel("Destination").fill("https://example.com/e2e-updated");

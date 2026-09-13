@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Copy, MoreHorizontal, Pencil, QrCode, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DeleteLinkDialog } from "@/components/links/delete-link-dialog";
 import { EditLinkDialog } from "@/components/links/edit-link-dialog";
+import { QrCodeDialog } from "@/components/links/qr-code-dialog";
 import { ExpiryBadge } from "@/components/expiry-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ export function LinksTable({ links }: { links: LinkDTO[] }) {
   const navigate = useNavigate();
   const [editTarget, setEditTarget] = useState<LinkDTO | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LinkDTO | null>(null);
+  const [qrTarget, setQrTarget] = useState<LinkDTO | null>(null);
 
   async function handleCopy(link: LinkDTO): Promise<void> {
     await copyText(link.shortUrl);
@@ -94,6 +96,9 @@ export function LinksTable({ links }: { links: LinkDTO[] }) {
                     <DropdownMenuItem onClick={() => void handleCopy(link)}>
                       <Copy /> Copy short URL
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setQrTarget(link)}>
+                      <QrCode /> QR code
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setEditTarget(link)}>
                       <Pencil /> Edit
                     </DropdownMenuItem>
@@ -125,6 +130,14 @@ export function LinksTable({ links }: { links: LinkDTO[] }) {
         onOpenChange={(open) => {
           if (!open) {
             setDeleteTarget(null);
+          }
+        }}
+      />
+      <QrCodeDialog
+        target={qrTarget ? { shortCode: qrTarget.shortCode, shortUrl: qrTarget.shortUrl } : null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setQrTarget(null);
           }
         }}
       />
