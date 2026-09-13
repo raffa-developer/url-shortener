@@ -3,31 +3,6 @@
 A URL shortener where shortening is the easy part — the interesting engineering is
 everything that happens _after_ a link is clicked.
 
-> **Status:** V6 (production features) complete — the project is feature-complete
-> and fully containerised.
-
-## Features
-
-- [x] URL shortening with generated Base62 codes
-- [x] Custom aliases (with reserved-word protection)
-- [x] Optional link expiration (`410 Gone` once expired)
-- [x] Collision-safe code allocation
-- [x] Registration / login / logout with JWT access + rotating refresh tokens
-- [x] API keys (`X-API-Key`) for programmatic access, revocable per user
-- [x] Per-user link ownership (users can only see and manage their own links)
-- [x] Click analytics: totals, daily series, countries, devices, browsers, referrers
-- [x] React dashboard: shadcn/ui components, responsive layout, light/dark themes
-- [x] Dashboard API-key management (one-time secret shown once, revoke any time)
-- [x] Redis cache-aside for redirects with measured benchmarks
-- [x] Asynchronous click processing: Redis Streams + a dedicated worker
-- [x] Redis-backed rate limiting (global + stricter auth limits)
-- [x] OpenAPI documentation with interactive Swagger UI at `/docs`
-- [x] Structured JSON logging (pino) with secret redaction
-- [x] REST API with runtime + response schema validation (Zod)
-- [x] Health / readiness checks
-- [x] Docker images + full `docker compose` stack
-- [x] Playwright end-to-end tests and GitHub Actions CI
-
 ## Architecture
 
 ```text
@@ -525,29 +500,3 @@ database; remove them (and all their links, clicks and keys) afterwards with:
 ```bash
 npm run db:cleanup-test-data
 ```
-
-## Continuous integration
-
-`.github/workflows/ci.yml` runs four jobs on every push/PR:
-
-| Job | What it does |
-| --- | ------------ |
-| `verify` | typecheck, unit tests, production builds |
-| `integration` | starts Postgres + Redis services, migrates, runs the integration suite |
-| `e2e` | starts services, migrates, installs Chromium, runs Playwright |
-| `docker` | builds every image via `docker compose --profile full build` |
-
-## Roadmap
-
-- [x] **V1 — Basic shortener:** create → code → PostgreSQL → redirect.
-- [x] **V2 — Authentication:** register / login / logout, per-user ownership.
-- [x] **V3 — Analytics:** record timestamp, device, browser, country, referrer; analytics endpoint.
-- [x] **Dashboard:** React app for creating links, managing them and viewing analytics.
-- [x] **V4 — Redis:** cache `short_code → destination_url` (cache-aside), measured at 2.5× faster than Postgres.
-- [x] **V5 — Events:** click events on a Redis stream, processed by a worker — redirects dropped from 2.12 ms to 0.71 ms.
-- [x] **V6 — Production:** rate limiting, API keys, OpenAPI docs, structured logging, Docker images and the full compose stack.
-- [x] **Extras:** dashboard API-key management, Playwright E2E tests, GitHub Actions CI.
-
-All planned versions are complete. The interesting engineering story in one
-sentence: **a redirect that used to make four synchronous decisions now makes
-one cache lookup and writes one event — everything else happens out of band.**
