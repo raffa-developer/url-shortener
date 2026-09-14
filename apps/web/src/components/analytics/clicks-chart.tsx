@@ -8,7 +8,7 @@ import {
   YAxis,
 } from "recharts";
 import type { TooltipContentProps } from "recharts";
-import { formatDayLabel, formatNumber } from "@/lib/format";
+import { formatCompactNumber, formatDayLabel, formatNumber } from "@/lib/format";
 
 function ChartTooltip({
   active,
@@ -52,6 +52,7 @@ export function ClicksChart({ data }: { data: { date: string; count: number }[] 
           <YAxis
             allowDecimals={false}
             width={44}
+            tickFormatter={(value: number) => formatCompactNumber(value)}
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             tickLine={false}
             axisLine={false}
@@ -66,6 +67,8 @@ export function ClicksChart({ data }: { data: { date: string; count: number }[] 
             stroke="var(--chart-1)"
             strokeWidth={2}
             fill="url(#clicksFill)"
+            dot={false}
+            activeDot={{ r: 3, strokeWidth: 0, fill: "var(--chart-1)" }}
           />
         </AreaChart>
       </ResponsiveContainer>

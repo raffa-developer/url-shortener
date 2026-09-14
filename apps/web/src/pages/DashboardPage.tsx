@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, Link2, MailWarning, Plus, Search, X } from "lucide-react";
+import { AlertCircle, Link2, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { CreateLinkDialog } from "@/components/links/create-link-dialog";
 import { LinksTable } from "@/components/links/links-table";
@@ -18,10 +18,18 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useAuth } from "@/lib/auth-store";
+import { cn } from "@/lib/utils";
 import { useLinks, useResendVerification } from "@/lib/queries";
 import type { LinkSort, LinkStatusFilter } from "@/lib/types";
 
 const PAGE_SIZE = 10;
+
+const STATUS_TABS: { value: LinkStatusFilter; label: string; title: string }[] = [
+  { value: "all", label: "All", title: "Every link" },
+  { value: "active", label: "Active", title: "Not expired" },
+  { value: "expiring", label: "Expiring", title: "Expires within 7 days" },
+  { value: "expired", label: "Expired", title: "Already expired" },
+];
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -37,6 +45,12 @@ export function DashboardPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, status, sort]);
+
+  useEffect(() => {
+    const openCreate = () => setCreateOpen(true);
+    window.addEventListener("open-create-link", openCreate);
+    return () => window.removeEventListener("open-create-link", openCreate);
+  }, []);
 
   const links = useLinks({
     page,
@@ -67,7 +81,6 @@ export function DashboardPage() {
     <div className="space-y-6">
       {user && user.emailVerifiedAt === null ? (
         <Alert className="border-primary/30 bg-primary/5">
-          <MailWarning />
           <AlertTitle>Verify your email address</AlertTitle>
           <AlertDescription>
             <div className="flex flex-wrap items-center gap-3">
@@ -86,8 +99,8 @@ export function DashboardPage() {
       ) : null}
 
       <PageHeader
-        title="My Links"
-        description="Create short links and click a row to explore its analytics."
+        title="Links"
+        description="Create short links and open one to explore its analytics."
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus />
@@ -98,57 +111,62 @@ export function DashboardPage() {
 
       <CreateLinkDialog open={createOpen} onOpenChange={setCreateOpen} />
 
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="flex flex-col gap-3 border-b px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-medium">Links</h2>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {links.data ? `${total} total` : ""}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search alias or destination"
-                aria-label="Search links"
-                className="h-8 w-56 pl-8 text-sm"
-              />
-            </div>
-            <Select
-              value={status}
-              onValueChange={(value) => setStatus(value as LinkStatusFilter)}
-            >
-              <SelectTrigger size="sm" className="w-38" aria-label="Filter by status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="expiring">Expiring in 7 days</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sort} onValueChange={(value) => setSort(value as LinkSort)}>
-              <SelectTrigger size="sm" className="w-40" aria-label="Sort links">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Newest first</SelectItem>
-                <SelectItem value="oldest">Oldest first</SelectItem>
-                <SelectItem value="clicks">Most clicks</SelectItem>
-                <SelectItem value="expires">Expiring first</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card p-1.5">
+        <div className="relative min-w-[12rem] flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search alias or destination"
+            aria-label="Search links"
+            className="h-8 border-transparent bg-transparent pl-8 shadow-none focus-visible:ring-1"
+          />
         </div>
 
+        <div className="flex items-center rounded-lg bg-muted p-0.5">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              title={tab.title}
+              onClick={() => setStatus(tab.value)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                status === tab.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <Select value={sort} onValueChange={(value) => setSort(value as LinkSort)}>
+          <SelectTrigger
+            size="sm"
+            className="w-36 border-transparent bg-transparent shadow-none"
+            aria-label="Sort links"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">Newest first</SelectItem>
+            <SelectItem value="oldest">Oldest first</SelectItem>
+            <SelectItem value="clicks">Most clicks</SelectItem>
+            <SelectItem value="expires">Expiring first</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <span className="px-2 text-xs text-muted-foreground tabular-nums">
+          {total} {total === 1 ? "link" : "links"}
+        </span>
+      </div>
+
+      <Card className="gap-0 overflow-hidden border-border/60 py-0 shadow-none">
         {links.isPending ? (
           <div className="space-y-1 p-3">
-            {Array.from({ length: 5 }).map((_, index) => (
+            {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="h-10 w-full" />
             ))}
           </div>
@@ -192,13 +210,13 @@ export function DashboardPage() {
         )}
 
         {total > 0 ? (
-          <div className="flex items-center justify-between border-t px-5 py-3">
+          <div className="flex items-center justify-between border-t border-border/60 px-4 py-2.5">
             <p className="text-xs text-muted-foreground tabular-nums">
-              Showing {rangeStart}–{rangeEnd} of {total}
+              {rangeStart}–{rangeEnd} of {total}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 disabled={page <= 1}
                 onClick={() => setPage((current) => current - 1)}
@@ -206,7 +224,7 @@ export function DashboardPage() {
                 Previous
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 disabled={rangeEnd >= total}
                 onClick={() => setPage((current) => current + 1)}

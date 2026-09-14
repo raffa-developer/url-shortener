@@ -12,7 +12,13 @@ test("a new user can register, shorten a link and see analytics", async ({
   request,
 }) => {
   await register(page);
-  await expect(page.getByRole("heading", { name: "My Links" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Links" })).toBeVisible();
+
+  // Command palette opens with Ctrl+K and closes on Escape.
+  await page.keyboard.press("Control+K");
+  await expect(page.getByPlaceholder("Type a command or search…")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByPlaceholder("Type a command or search…")).toHaveCount(0);
 
   const alias = `e2e${Date.now().toString(36)}`;
 
@@ -57,7 +63,7 @@ test("a new user can register, shorten a link and see analytics", async ({
 
   // Back to the dashboard to edit the link.
   await page.getByRole("link", { name: "Links", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "My Links" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Links" })).toBeVisible();
 
   const row = page.locator("tbody tr", { hasText: `/${alias}` });
 
@@ -82,6 +88,7 @@ test("a new user can register, shorten a link and see analytics", async ({
   await expect(page.getByText("Link deleted")).toBeVisible();
   await expect(page.locator("tbody tr", { hasText: `/${alias}` })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Log out" }).click();
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitem", { name: "Log out" }).click();
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 });

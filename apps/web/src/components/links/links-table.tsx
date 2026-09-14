@@ -6,6 +6,7 @@ import { DeleteLinkDialog } from "@/components/links/delete-link-dialog";
 import { EditLinkDialog } from "@/components/links/edit-link-dialog";
 import { QrCodeDialog } from "@/components/links/qr-code-dialog";
 import { ExpiryBadge } from "@/components/expiry-badge";
+import { Favicon } from "@/components/favicon";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { copyText } from "@/lib/clipboard";
+import { domainFromUrl } from "@/lib/favicon";
 import { formatNumber, formatRelative } from "@/lib/format";
 import type { LinkDTO } from "@/lib/types";
 
@@ -56,16 +58,21 @@ export function LinksTable({ links }: { links: LinkDTO[] }) {
           {links.map((link) => (
             <TableRow
               key={link.id}
-              className="cursor-pointer"
+              className="group cursor-pointer"
               onClick={() => navigate(`/links/${link.shortCode}`)}
             >
               <TableCell>
-                <span className="font-mono text-sm text-primary">/{link.shortCode}</span>
+                <span className="font-mono text-[13px] font-medium text-primary">
+                  /{link.shortCode}
+                </span>
               </TableCell>
               <TableCell>
-                <span className="block max-w-[260px] truncate text-muted-foreground">
-                  {link.destinationUrl}
-                </span>
+                <div className="flex items-center gap-2">
+                  <Favicon domain={domainFromUrl(link.destinationUrl)} />
+                  <span className="block max-w-[260px] truncate text-muted-foreground">
+                    {link.destinationUrl}
+                  </span>
+                </div>
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {formatNumber(link.clickCount)}
@@ -82,7 +89,7 @@ export function LinksTable({ links }: { links: LinkDTO[] }) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="size-7"
+                      className="size-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-sm:opacity-100"
                       aria-label="Open menu"
                       onClick={(event) => event.stopPropagation()}
                     >

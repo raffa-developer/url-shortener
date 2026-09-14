@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeExpiresAt,
+  formatCompactNumber,
   formatDayLabel,
   formatExpiry,
   formatNumber,
@@ -12,6 +13,14 @@ import {
 describe("formatNumber", () => {
   it("adds thousands separators", () => {
     expect(formatNumber(1482)).toBe("1,482");
+  });
+});
+
+describe("formatCompactNumber", () => {
+  it("shortens large values for chart axes", () => {
+    expect(formatCompactNumber(999)).toBe("999");
+    expect(formatCompactNumber(1234)).toBe("1.2K");
+    expect(formatCompactNumber(1_500_000)).toBe("1.5M");
   });
 });
 

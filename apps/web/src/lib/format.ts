@@ -2,6 +2,14 @@ export function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
 
+/** 1234 -> "1.2K"; used for chart axes. */
+export function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",

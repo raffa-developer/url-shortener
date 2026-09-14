@@ -15,14 +15,14 @@ export function AuthShell({
   footer?: ReactNode;
 }) {
   return (
-    <div className="relative flex min-h-svh flex-col items-center justify-center px-4 py-10">
+    <div className="auth-glow relative flex min-h-svh flex-col items-center justify-center px-4 py-10">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
       <div className="mb-8">
         <Logo />
       </div>
-      <Card className="w-full max-w-sm gap-6 py-6">
+      <Card className="w-full max-w-sm gap-6 border-border/70 py-6">
         <CardHeader className="px-6 py-0">
           <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
           <p className="text-sm text-muted-foreground">{subtitle}</p>

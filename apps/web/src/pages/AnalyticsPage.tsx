@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Loader2, QrCode, RefreshCw } from "lucide-react";
-import { BreakdownCard } from "@/components/analytics/breakdown-card";
 import { ClicksChart } from "@/components/analytics/clicks-chart";
+import { InsightsCard } from "@/components/analytics/insights-card";
 import { LinkPreviewCard } from "@/components/analytics/link-preview-card";
-import { QrCodeDialog } from "@/components/links/qr-code-dialog";
 import { CopyButton } from "@/components/copy-button";
 import { ExpiryBadge } from "@/components/expiry-badge";
+import { QrCodeDialog } from "@/components/links/qr-code-dialog";
 import { StatCard } from "@/components/stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -96,11 +96,6 @@ export function AnalyticsPage() {
         onOpenChange={(open) => setQrOpen(open)}
       />
 
-      <LinkPreviewCard
-        shortCode={data.link.shortCode}
-        destinationUrl={data.link.destinationUrl}
-      />
-
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total clicks"
@@ -120,22 +115,22 @@ export function AnalyticsPage() {
         <StatCard label="Yesterday" value={formatNumber(data.yesterday)} />
       </div>
 
-      <Card className="gap-4 py-5">
+      <Card className="gap-4 border-border/60 py-5 shadow-none">
         <CardHeader className="flex-row items-center justify-between space-y-0 px-5 py-0">
           <div className="space-y-1">
             <CardTitle className="text-sm font-medium">Clicks over time</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Last {data.range.days} days · UTC
+              {formatNumber(data.totalClicks)} clicks · last {data.range.days} days · UTC
             </p>
           </div>
-          <div className="flex rounded-md bg-muted p-0.5">
+          <div className="flex rounded-lg bg-muted p-0.5">
             {RANGES.map((range) => (
               <button
                 key={range}
                 type="button"
                 onClick={() => setDays(range)}
                 className={cn(
-                  "rounded-[5px] px-2.5 py-1 text-xs font-medium transition-colors",
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                   days === range
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
@@ -151,24 +146,12 @@ export function AnalyticsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <BreakdownCard
-          title="Countries"
-          items={data.countries.map((row) => ({ label: row.country, count: row.count }))}
-        />
-        <BreakdownCard
-          title="Devices"
-          items={data.devices.map((row) => ({ label: row.device, count: row.count }))}
-        />
-        <BreakdownCard
-          title="Browsers"
-          items={data.browsers.map((row) => ({ label: row.browser, count: row.count }))}
-        />
-        <BreakdownCard
-          title="Referrers"
-          items={data.referrers.map((row) => ({ label: row.source, count: row.count }))}
-        />
-      </div>
+      <InsightsCard data={data} />
+
+      <LinkPreviewCard
+        shortCode={data.link.shortCode}
+        destinationUrl={data.link.destinationUrl}
+      />
     </div>
   );
 }
