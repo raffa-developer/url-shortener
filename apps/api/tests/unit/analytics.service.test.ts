@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LinkDTO } from "@url-shortener/shared";
 import { AnalyticsService } from "../../src/modules/analytics/analytics.service";
-import { startOfUtcDay } from "../../src/modules/analytics/analytics.utils";
+import { startOfUtcDay, toUtcDateKey } from "../../src/modules/analytics/analytics.utils";
 import type {
   ClickRepository,
   CreateClickInput,
@@ -142,14 +142,19 @@ describe("AnalyticsService.recordClick", () => {
 
 describe("AnalyticsService.getLinkAnalytics", () => {
   it("aggregates totals, dimensions and a dense daily series", async () => {
+    // Derived from the current date: the series ends on today (UTC).
+    const startOfToday = startOfUtcDay(new Date());
+    const todayKey = toUtcDateKey(startOfToday);
+    const yesterdayKey = toUtcDateKey(new Date(startOfToday.getTime() - 86_400_000));
+
     const repository = new FakeClickRepository();
     repository.total = 12;
     repository.uniqueVisitors = 7;
     repository.today = 3;
     repository.yesterday = 2;
     repository.daily = [
-      { date: "2026-09-12", count: 4 },
-      { date: "2026-09-13", count: 3 },
+      { date: yesterdayKey, count: 4 },
+      { date: todayKey, count: 3 },
     ];
     repository.countries = [
       { value: "PT", count: 7 },
@@ -178,7 +183,7 @@ describe("AnalyticsService.getLinkAnalytics", () => {
     expect(analytics.today).toBe(3);
     expect(analytics.yesterday).toBe(2);
     expect(analytics.clicksPerDay).toHaveLength(7);
-    expect(analytics.clicksPerDay.at(-1)).toEqual({ date: "2026-09-13", count: 3 });
+    expect(analytics.clicksPerDay.at(-1)).toEqual({ date: todayKey, count: 3 });
     expect(analytics.countries).toEqual([
       { country: "PT", count: 7 },
       { country: "Unknown", count: 5 },
